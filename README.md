@@ -11,37 +11,212 @@ A production-quality, battery-powered automatic plant watering system using ESP3
 - **Persistent Storage**: Settings survive power cycles (NVS)
 - **Protected Calibration**: Requires button combinations to prevent accidents
 
-## Hardware Requirements
+## Hardware - ESP32-C3 Supermini (HW-466AB)
 
-| Component | Pin | Notes |
-|-----------|-----|-------|
-| Soil Moisture Sensor | GPIO34 | Capacitive sensor, ADC1 |
-| Battery Voltage | GPIO35 | Via voltage divider (1:1 ratio) |
-| Water Pump | GPIO25 | Via N-MOSFET (logic level) |
-| Green LED | GPIO26 | 220Ω resistor to GND |
-| Red LED | GPIO27 | 220Ω resistor to GND |
-| Main Button | GPIO32 | To GND, internal pull-up |
-| Wet Cal Button | GPIO33 | To GND, internal pull-up |
-| Dry Cal Button | GPIO14 | To GND, internal pull-up |
+### Components Needed
 
-### Schematic Notes
+| Quantity | Component | Example Part |
+|----------|-----------|--------------|
+| 1 | ESP32-C3 Supermini board | HW-466AB |
+| 1 | Capacitive soil moisture sensor | v1.2 or v2.0 |
+| 1 | Mini water pump 3-6V | DC submersible pump |
+| 1 | N-channel MOSFET | IRLZ44N or 2N7000 |
+| 1 | Li-ion/LiPo battery | 18650 (3.7V) or similar |
+| 2 | 100kΩ resistors | Voltage divider |
+| 2 | 220Ω resistors | LED current limiting |
+| 1 | Green LED | 3mm or 5mm |
+| 1 | Red LED | 3mm or 5mm |
+| 3 | Push buttons | Tactile switches |
+| 1 | Breadboard or perfboard | For prototyping |
+| - | Jumper wires | Male-to-female preferred |
+
+---
+
+## 🔌 WIRING GUIDE - Step by Step
+
+### ESP32-C3 Supermini Pinout Reference
+```
+     USB-C
+    ┌─────┐
+5V  │ ● ● │ GND
+G21 │ ● ● │ 3V3
+G20 │ ● ● │ G10
+G10 │ ● ● │ G9   (avoid - strapping pin)
+G8  │ ● ● │ G8   (avoid - strapping pin)
+G7  │ ● ● │ G7
+G6  │ ● ● │ G6
+G5  │ ● ● │ G5
+G4  │ ● ● │ G4   ← Soil sensor
+G3  │ ● ● │ G3   ← Battery voltage
+G2  │ ● ● │ G2   (avoid - strapping pin)
+G1  │ ● ● │ G1
+G0  │ ● ● │ G0
+    └─────┘
+```
+
+---
+
+### 1️⃣ SOIL MOISTURE SENSOR → ESP32-C3
+
+**Sensor has 3 wires:**
+- **Red (VCC)** → ESP32 **3V3** pin
+- **Black (GND)** → ESP32 **GND** pin
+- **Yellow (Signal)** → ESP32 **GPIO4** pin
+
+✅ That's it! No resistors needed.
+
+---
+
+### 2️⃣ BATTERY VOLTAGE MONITORING → ESP32-C3
+
+**Build voltage divider with 2× 100kΩ resistors:**
 
 ```
-BATTERY (+) ──┬── Voltage Divider ──> GPIO35
-              │   (100k + 100k)
-              └── VIN or 3.3V regulator
-
-PUMP: GPIO25 ──> MOSFET Gate ──> Pump (-)
-                              └── GND
-      Pump (+) ──> Battery (+)
-
-SENSOR: VCC ──> 3.3V
-        GND ──> GND
-        OUT ──> GPIO34
-
-BUTTONS: Each button connects GPIO to GND when pressed
-         Internal pull-ups used (no external resistors needed)
+Battery (+) ────┬──────────────> Battery connector
+                │
+              [100kΩ]
+                │
+                ├──────────────> ESP32 GPIO3
+                │
+              [100kΩ]
+                │
+               GND ────────────> ESP32 GND
 ```
+
+**Why?** ESP32 reads 0-3.3V max. Battery is 3.0-4.2V, so we divide by 2.
+
+**Steps:**
+1. Solder 100kΩ resistor from Battery+ to a middle point
+2. Solder another 100kΩ from that middle point to GND
+3. Connect middle point to ESP32 **GPIO3**
+4. Connect Battery+ to ESP32 **5V** pin (powers the board)
+5. Connect Battery- (GND) to ESP32 **GND**
+
+---
+
+### 3️⃣ WATER PUMP + MOSFET + FLYBACK DIODE → ESP32-C3
+
+**⚠️ Critical: add a flyback diode to protect the MOSFET**
+- Use 1N4007 (or 1N4148). 
+- **Striped end (cathode)** goes to pump **positive (+)**. 
+- **Plain end (anode)** goes to MOSFET **Drain** (and pump −).
+
+**MOSFET legs (flat side facing you):**
+- Left = **Gate** ← GPIO5
+- Middle = **Drain** ← Pump (−) & diode anode
+- Right = **Source** ← GND
+
+**Wiring:**
+1) ESP32 **GPIO5** → MOSFET **Gate** (left)  
+2) MOSFET **Source** (right) → ESP32 **GND**  
+3) MOSFET **Drain** (middle) → Pump **black (−)**  
+4) Pump **red (+)** → Battery **+** (or switch → Battery +)  
+5) **Flyback diode:** anode (no stripe) to MOSFET Drain; cathode (stripe) to Pump +
+
+```
+ESP32 GPIO5 ────────────> MOSFET Gate
+                          MOSFET Source ──> GND
+                          MOSFET Drain ───> Pump (−)
+                                            │
+                               Diode anode ─┘
+                               Diode cathode (stripe) ──> Pump (+) ──> Battery (+)
+```
+
+✅ MOSFET acts as electronic switch. GPIO5 HIGH = pump ON, LOW = pump OFF. The diode clamps the voltage spike when the pump turns off.
+
+---
+
+### 4️⃣ GREEN LED → ESP32-C3
+
+**LED has 2 legs:**
+- **Long leg (+)** = Anode
+- **Short leg (−)** = Cathode
+
+**Wiring:**
+1. ESP32 **GPIO6** → **220Ω resistor** → LED long leg (+)
+2. LED short leg (−) → ESP32 **GND**
+
+```
+ESP32 GPIO6 ──[220Ω]──> LED (+) ──> GND
+```
+
+---
+
+### 5️⃣ RED LED → ESP32-C3
+
+Same as green LED:
+
+1. ESP32 **GPIO7** → **220Ω resistor** → LED long leg (+)
+2. LED short leg (−) → ESP32 **GND**
+
+```
+ESP32 GPIO7 ──[220Ω]──> LED (+) ──> GND
+```
+
+---
+
+### 6️⃣ BUTTONS → ESP32-C3
+
+**Each button has 2 legs. When pressed, they connect together.**
+
+**No resistors needed!** ESP32 has internal pull-ups.
+
+**Main Button:**
+- One leg → ESP32 **GPIO10**
+- Other leg → ESP32 **GND**
+
+**Wet Calibration Button:**
+- One leg → ESP32 **GPIO20**
+- Other leg → ESP32 **GND**
+
+**Dry Calibration Button:**
+- One leg → ESP32 **GPIO21**
+- Other leg → ESP32 **GND**
+
+```
+Button layout:
+[GPIO10] ──┤ ├── GND    (Main)
+[GPIO20] ──┤ ├── GND    (Wet Cal)
+[GPIO21] ──┤ ├── GND    (Dry Cal)
+```
+
+---
+
+## ✅ COMPLETE WIRING SUMMARY
+
+| From | To | Notes |
+|------|-----|-------|
+| **Soil Sensor VCC** | ESP32 **3V3** | Red wire |
+| **Soil Sensor GND** | ESP32 **GND** | Black wire |
+| **Soil Sensor OUT** | ESP32 **GPIO4** | Yellow/Signal wire |
+| **Battery (+)** | ESP32 **5V** | Powers board |
+| **Battery (−)** | ESP32 **GND** | Common ground |
+| **Battery (+)** | Voltage divider top | 100kΩ resistor |
+| **Divider middle** | ESP32 **GPIO3** | After first 100kΩ |
+| **Divider bottom** | ESP32 **GND** | Second 100kΩ to GND |
+| **ESP32 GPIO5** | MOSFET **Gate** | Pump control |
+| **MOSFET Source** | ESP32 **GND** | Common ground |
+| **MOSFET Drain** | Pump **(−)** | Pump negative wire |
+| **Pump (+)** | Battery **(+)** | Pump power |
+| **ESP32 GPIO6** | Green LED (+) | Via 220Ω resistor |
+| **Green LED (−)** | ESP32 **GND** | Short leg |
+| **ESP32 GPIO7** | Red LED (+) | Via 220Ω resistor |
+| **Red LED (−)** | ESP32 **GND** | Short leg |
+| **Main Button** | GPIO10 ↔ GND | Press = connect |
+| **Wet Cal Button** | GPIO20 ↔ GND | Press = connect |
+| **Dry Cal Button** | GPIO21 ↔ GND | Press = connect |
+
+---
+
+## 🧪 TESTING BEFORE USE
+
+1. **Power Test**: Plug battery. Green or red LED should NOT light yet (deep sleep).
+2. **Button Test**: Press Main button briefly. ESP32 should wake, LEDs may flash.
+3. **LED Test**: Code will test LEDs on first boot.
+4. **Sensor Test**: Check Serial Monitor (115200 baud) for sensor readings.
+5. **Pump Test**: Use manual watering (long-press Main). Pump should run 3 seconds.
+
+---
 
 ## Button Operations
 

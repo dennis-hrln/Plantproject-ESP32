@@ -71,7 +71,9 @@ WakeReason determine_wake_reason() {
 
 /**
  * Configure and enter deep sleep.
- * Sets up timer wake and button wake sources.
+ * Sets up timer wake and GPIO wake sources.
+ * 
+ * Note: ESP32-C3 uses per-pin gpio_wakeup_enable() configuration
  */
 void enter_deep_sleep() {
     // Ensure pump is off before sleeping
@@ -83,10 +85,14 @@ void enter_deep_sleep() {
     // Configure timer wake (periodic measurement interval)
     esp_sleep_enable_timer_wakeup(MEASUREMENT_INTERVAL_SEC * SEC_TO_US);
     
-    // Configure button wake (EXT1 = multiple pins, any HIGH triggers wake)
-    // Using LOW level trigger because buttons use internal pull-ups
-    // When button pressed = LOW, so we use EXT1 with ALL_LOW mode
-    esp_sleep_enable_ext1_wakeup(BUTTON_WAKE_MASK, ESP_EXT1_WAKEUP_ALL_LOW);
+    // Configure GPIO wake for buttons (ESP32-C3 compatible)
+    // Enable GPIO wakeup mode globally
+    esp_sleep_enable_gpio_wakeup();
+    
+    // Configure each button pin to wake on LOW level (pressed = LOW due to pull-up)
+    gpio_wakeup_enable(PIN_BTN_MAIN, GPIO_INTR_LOW_LEVEL);
+    gpio_wakeup_enable(PIN_BTN_CAL_WET, GPIO_INTR_LOW_LEVEL);
+    gpio_wakeup_enable(PIN_BTN_CAL_DRY, GPIO_INTR_LOW_LEVEL);
     
     // Enter deep sleep (function does not return)
     esp_deep_sleep_start();

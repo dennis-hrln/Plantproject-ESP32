@@ -11,26 +11,28 @@
 #include <Arduino.h>
 
 // =============================================================================
-// HARDWARE PIN DEFINITIONS (ADC1 pins only: GPIO 32-39)
+// HARDWARE PIN DEFINITIONS - ESP32-C3 Supermini (HW-466AB)
 // =============================================================================
+// ESP32-C3 has ADC1 on GPIO0-4, safe digital GPIO on 5-10, 18-21
+// Avoid GPIO2, GPIO8, GPIO9 (strapping/boot pins)
 
 // Soil moisture sensor (capacitive, analog output)
-#define PIN_SOIL_SENSOR         GPIO_NUM_34   // ADC1_CH6, input only
+#define PIN_SOIL_SENSOR         GPIO_NUM_4    // ADC1_CH4, analog input
 
 // Battery voltage via voltage divider
-#define PIN_BATTERY_ADC         GPIO_NUM_35   // ADC1_CH7, input only
+#define PIN_BATTERY_ADC         GPIO_NUM_3    // ADC1_CH3, analog input
 
 // Pump control (N-MOSFET gate)
-#define PIN_PUMP                GPIO_NUM_25   // Output to MOSFET gate
+#define PIN_PUMP                GPIO_NUM_5    // Digital output to MOSFET
 
 // LEDs
-#define PIN_LED_GREEN           GPIO_NUM_26   // Status / humidity display
-#define PIN_LED_RED             GPIO_NUM_27   // Low battery / error
+#define PIN_LED_GREEN           GPIO_NUM_6    // Status / humidity display
+#define PIN_LED_RED             GPIO_NUM_7    // Low battery / error
 
-// Buttons (directly connected, use internal pull-ups)
-#define PIN_BTN_MAIN            GPIO_NUM_32   // Main interaction button
-#define PIN_BTN_CAL_WET         GPIO_NUM_33   // Wet calibration button
-#define PIN_BTN_CAL_DRY         GPIO_NUM_14   // Dry calibration button
+// Buttons (connect to GND when pressed, internal pull-ups enabled)
+#define PIN_BTN_MAIN            GPIO_NUM_10   // Main interaction button
+#define PIN_BTN_CAL_WET         GPIO_NUM_20   // Wet calibration button
+#define PIN_BTN_CAL_DRY         GPIO_NUM_21   // Dry calibration button
 
 // Button wake-up mask for deep sleep (ext1)
 #define BUTTON_WAKE_MASK        ((1ULL << PIN_BTN_MAIN) | (1ULL << PIN_BTN_CAL_WET) | (1ULL << PIN_BTN_CAL_DRY))
