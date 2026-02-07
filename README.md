@@ -175,9 +175,9 @@ ESP32 GPIO7 ──[220Ω]──> LED (+) ──> GND
 
 ```
 Button layout:
-[GPIO10] ──┤ ├── GND    (Main)
-[GPIO20] ──┤ ├── GND    (Wet Cal)
-[GPIO21] ──┤ ├── GND    (Dry Cal)
+[GPIO0] ──┤ ├── GND    (Main)
+[GPIO1] ──┤ ├── GND    (Wet Cal)
+[GPIO2] ──┤ ├── GND    (Dry Cal)
 ```
 
 ---
