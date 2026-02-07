@@ -30,9 +30,9 @@
 #define PIN_LED_RED             GPIO_NUM_7    // Low battery / error
 
 // Buttons (connect to GND when pressed, internal pull-ups enabled)
-#define PIN_BTN_MAIN            GPIO_NUM_10   // Main interaction button
-#define PIN_BTN_CAL_WET         GPIO_NUM_20   // Wet calibration button
-#define PIN_BTN_CAL_DRY         GPIO_NUM_21   // Dry calibration button
+#define PIN_BTN_MAIN            GPIO_NUM_0   // Main interaction button
+#define PIN_BTN_CAL_WET         GPIO_NUM_1   // Wet calibration button
+#define PIN_BTN_CAL_DRY         GPIO_NUM_2   // Dry calibration button
 
 // Button wake-up mask for deep sleep (ext1)
 #define BUTTON_WAKE_MASK        ((1ULL << PIN_BTN_MAIN) | (1ULL << PIN_BTN_CAL_WET) | (1ULL << PIN_BTN_CAL_DRY))
@@ -54,9 +54,9 @@
 // Example: 100k / (100k + 100k) = 0.5 → multiply ADC voltage by 2
 #define BATTERY_DIVIDER_RATIO   2.0
 
-#define BATTERY_FULL_MV         4200    // Fully charged Li-ion
-#define BATTERY_WARNING_MV      3500    // Show warning LED
-#define BATTERY_CRITICAL_MV     3300    // Disable watering
+#define BATTERY_FULL_MV         4600    // Fully charged 
+#define BATTERY_WARNING_MV      3600    // Show warning LED
+#define BATTERY_CRITICAL_MV     3200    // Disable watering
 #define BATTERY_EMPTY_MV        3000    // Absolute minimum
 
 // =============================================================================
@@ -81,6 +81,10 @@
 // =============================================================================
 // SLEEP / TIMING CONFIGURATION
 // =============================================================================
+
+// Temporary debug: keep device awake to test buttons
+// Set to 1 to disable deep sleep and poll buttons in loop()
+#define DEBUG_NO_SLEEP           0
 
 // How often to wake and check soil moisture (in seconds)
 #define MEASUREMENT_INTERVAL_SEC    (1 * 60 * 60)   // 1 hour

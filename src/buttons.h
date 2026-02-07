@@ -138,4 +138,12 @@ bool buttons_full_combo_pressed();
  */
 void buttons_handle_interaction();
 
+/**
+ * Handle button wake with GPIO wake mask for single-press detection.
+ * Use the wake mask from esp_sleep_get_gpio_wakeup_status().
+ * 
+ * @param wake_mask GPIO wake bitmask (0 if unknown)
+ */
+void buttons_handle_interaction_with_wake(uint64_t wake_mask);
+
 #endif // BUTTONS_H
