@@ -27,12 +27,6 @@ void pump_init() {
 // =============================================================================
 
 void pump_on() {
-    // Safety check: don't run on low battery
-    if (!battery_watering_allowed()) {
-        pump_off();
-        return;
-    }
-    
     digitalWrite(PIN_PUMP, HIGH);  // HIGH = MOSFET on = pump runs
     pump_running = true;
 }
@@ -70,7 +64,7 @@ bool pump_run_timed(uint32_t duration_ms) {
             pump_emergency_stop();
             return false;
         }
-        delay(100);  // Check every 100ms
+        yield();  // let watchdog / background tasks run
     }
     
     // Stop pump
