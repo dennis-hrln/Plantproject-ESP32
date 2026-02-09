@@ -40,144 +40,11 @@ A production-quality, battery-powered automatic plant watering system using ESP3
 
 ---
 
-## 🔌 WIRING GUIDE - Step by Step
+## Wiring
 
-### 1️⃣ SOIL MOISTURE SENSOR → ESP32-C3
+The full step-by-step wiring guide has been moved to a dedicated document: [Wiring Guide](wiring.md).
 
-**Sensor has 3 wires:**
-- **Red (VCC)** → ESP32 **3V3** pin
-- **Black (GND)** → ESP32 **GND** pin
-- **Yellow (Signal)** → ESP32 **GPIO4** pin
-
-✅ That's it! No resistors needed.
-
----
-
-### 2️⃣ BATTERY VOLTAGE MONITORING → ESP32-C3
-
-**Build voltage divider with 2× 100kΩ resistors:**
-```
-Battery (+) ────┬──────────────> Battery connector
-                │
-              [100kΩ]
-                │
-                ├──────────────> ESP32 GPIO3
-                │
-              [100kΩ]
-                │
-               GND ────────────> ESP32 GND
-```
-
-**Why?** ESP32 reads 0-3.3V max. Battery is 3.0-4.2V, so we divide by 2.
-
-**Steps:**
-1. Solder 100kΩ resistor from Battery+ to a middle point
-2. Solder another 100kΩ from that middle point to GND
-3. Connect middle point to ESP32 **GPIO3**
-4. Connect Battery+ to ESP32 **5V** pin (powers the board)
-5. Connect Battery- (GND) to ESP32 **GND**
-
----
-
-### 3️⃣ WATER PUMP + MOSFET + FLYBACK DIODE → ESP32-C3
-
-**⚠️ Critical: add a flyback diode to protect the MOSFET**
-- Use 1N4007 (or 1N4148). 
-- **Striped end (cathode)** goes to pump **positive (+)**. 
-- **Plain end (anode)** goes to MOSFET **Drain** (and pump −).
-
-**MOSFET legs (flat side facing you):**
-- Left = **Gate** ← GPIO5
-- Middle = **Drain** ← Pump (−) & diode anode
-- Right = **Source** ← GND
-
-**Wiring:**
-1) ESP32 **GPIO5** → MOSFET **Gate** (left)  
-2) MOSFET **Source** (right) → ESP32 **GND**  
-3) MOSFET **Drain** (middle) → Pump **black (−)**  
-4) Pump **red (+)** → Battery **+** (or switch → Battery +)  
-5) **Flyback diode:** anode (no stripe) to MOSFET Drain; cathode (stripe) to Pump +
-
-```
-ESP32 GPIO5 ────────────> MOSFET Gate
-                          MOSFET Source ──> GND
-                          MOSFET Drain ───> Pump (−)
-                                            │
-                               Diode anode ─┘
-                               Diode cathode (stripe) ──> Pump (+) ──> Battery (+)
-```
-
-✅ MOSFET acts as electronic switch. GPIO5 HIGH = pump ON, LOW = pump OFF. The diode clamps the voltage spike when the pump turns off.
-
----
-
-### 4️⃣ GREEN LED → ESP32-C3
-
-**LED has 2 legs:**
-- **Long leg (+)** = Anode
-- **Short leg (−)** = Cathode
-
-**Wiring:**
-1. ESP32 **GPIO6** → **220Ω resistor** → LED long leg (+)
-2. LED short leg (−) → ESP32 **GND**
-
-```
-ESP32 GPIO6 ──[220Ω]──> LED (+) ──> GND
-```
-
----
-
-### 5️⃣ RED LED → ESP32-C3
-
-Same as green LED:
-
-1. ESP32 **GPIO7** → **220Ω resistor** → LED long leg (+)
-2. LED short leg (−) → ESP32 **GND**
-
-```
-ESP32 GPIO7 ──[220Ω]──> LED (+) ──> GND
-```
-
----
-
-### 6️⃣ BUTTONS → ESP32-C3
-
-**Each button has 2 legs. When pressed, they connect together.**
-
-**No resistors needed!** ESP32 has internal pull-ups.
-
-**Button Pin Mapping:**
-- Main Button: GPIO0 ↔ GND
-- Wet Calibration Button: GPIO1 ↔ GND
-- Dry Calibration Button: GPIO2 ↔ GND
-
----
-
-## ✅ COMPLETE WIRING SUMMARY
-
-| From | To | Notes |
-|------|-----|-------|
-| **Soil Sensor VCC** | ESP32 **3V3** | Red wire |
-| **Soil Sensor GND** | ESP32 **GND** | Black wire |
-| **Soil Sensor OUT** | ESP32 **GPIO4** | Yellow/Signal wire |
-| **Battery (+)** | ESP32 **5V** | Powers board |
-| **Battery (−)** | ESP32 **GND** | Common ground |
-| **Battery (+)** | Voltage divider top | 100kΩ resistor |
-| **Divider middle** | ESP32 **GPIO3** | After first 100kΩ |
-| **Divider bottom** | ESP32 **GND** | Second 100kΩ to GND |
-| **ESP32 GPIO5** | MOSFET **Gate** | Pump control |
-| **MOSFET Source** | ESP32 **GND** | Common ground |
-| **MOSFET Drain** | Pump **(−)** | Pump negative wire |
-| **Pump (+)** | Battery **(+)** | Pump power |
-| **ESP32 GPIO6** | Green LED (+) | Via 220Ω resistor |
-| **Green LED (−)** | ESP32 **GND** | Short leg |
-| **ESP32 GPIO7** | Red LED (+) | Via 220Ω resistor |
-| **Red LED (−)** | ESP32 **GND** | Short leg |
-| **Main Button** | GPIO0 ↔ GND | Press = connect |
-| **Wet Cal Button** | GPIO1 ↔ GND | Press = connect |
-| **Dry Cal Button** | GPIO2 ↔ GND | Press = connect |
-
----
+This keeps the README focused — open `wiring.md` for detailed wiring steps, diagrams and the complete wiring summary.
 
 ## 🧪 TESTING BEFORE USE
 
@@ -218,6 +85,30 @@ ESP32 GPIO7 ──[220Ω]──> LED (+) ──> GND
 | 2 slow red blinks | Battery warning |
 | 5 rapid red blinks | Battery critical |
 | Green-Red-Green sequence | Calibration mode entered |
+
+## Button LED Behavior (quick reference)
+
+This describes what the LEDs will do when you press the Main, Wet and Dry buttons in two contexts: the `hardware_test` sketch and the main firmware (normal operation / calibration mode).
+
+### Hardware Test (upload the `hardware_test` environment)
+
+- Startup: 2× both-LED flashes → ready.
+- Main (short press): LED test sequence — Green ON 1s → Red ON 1s → Both ON 1s → Alternating green/red 4× (250ms).
+- Main (long press >2s): Battery test — Start marker, N× green blinks (1–5) representing battery level, optional red warning blinks if low, end marker.
+- Wet (short press): Soil sensor test — Start marker, short red flash (reading incoming), N× green blinks (each ≈10%), end marker; error = 5 rapid red blinks.
+- Dry (short press): Pump test — 3 red blinks countdown, red LED ON while pump runs (1s), confirmation 2 green blinks.
+- All 3 buttons together: Run all tests sequence — rapid alternating green/red 5× then runs all tests; final: 3 both-LED blinks.
+
+### Main Firmware (normal operation / calibration)
+
+- Main (short press): Display humidity — long green flashes for tens, short green flashes for ones (e.g., 4 long + 7 short = 47%).
+- Main (long press): Manual watering — green blink(s) then watering sequence (pump runs for configured duration if safety checks pass).
+- Enter calibration: Hold ALL 3 buttons for 2+ seconds → both LEDs pulse then calibration mode entered.
+- In calibration mode:
+   - Long-press WET button → wet calibration progress (green), then success pattern.
+   - Long-press DRY button → dry calibration progress (red), then success pattern.
+
+Refer to the `hardware_test` patterns above when using the standalone test sketch; both sets of patterns are useful during debugging and setup.
 
 **Hardware Test LED Patterns**
 
