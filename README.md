@@ -212,8 +212,8 @@ ESP32 GPIO7 ──[220Ω]──> LED (+) ──> GND
 
 | Pattern | Meaning |
 |---------|---------|
-| Both LEDs flash → Long flashes → Short flashes | Humidity display (tens.ones) |
-| 2 green blinks | Success |
+| Both LEDs flash → Long green flashes (tens) → Short green flashes (ones) | Humidity display (tens.ones) |
+| 2 solid green blinks | Success |
 | 3 rapid red blinks | Error |
 | 2 slow red blinks | Battery warning |
 | 5 rapid red blinks | Battery critical |
@@ -224,7 +224,7 @@ ESP32 GPIO7 ──[220Ω]──> LED (+) ──> GND
 ### Initial Setup
 
 1. **Dry Calibration** (do this first):
-   - Hold sensor in air (or completely dry soil)
+   - Hold sensor in completely dry soil
    - Press and hold ALL 3 buttons for 2+ seconds
    - Release all buttons when both LEDs pulse
    - Long-press the DRY button (red flashing indicates progress)
