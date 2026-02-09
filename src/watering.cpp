@@ -49,7 +49,7 @@
 // =============================================================================
 
 // Cache for current readings (refreshed each wake cycle)
-static uint8_t current_humidity = 0;
+static int16_t  current_humidity   = -1;   // -1 = not yet read
 static uint16_t current_raw_sensor = 0;
 
 // =============================================================================
@@ -128,7 +128,7 @@ static uint32_t get_seconds_until_interval_elapsed() {
 // =============================================================================
 
 WateringResult watering_check_and_execute() {
-    // Step 1: Read sensor
+    // Step 1: Read sensor once
     current_raw_sensor = sensor_read_raw();
     
     // Step 2: Validate sensor reading
@@ -136,8 +136,8 @@ WateringResult watering_check_and_execute() {
         return WATER_SENSOR_ERROR;
     }
     
-    // Step 3: Calculate humidity percentage
-    current_humidity = sensor_read_humidity_percent();
+    // Step 3: Convert to humidity using the same raw reading
+    current_humidity = sensor_raw_to_humidity_percent(current_raw_sensor);
     
     // Step 4: Check if watering is needed (humidity below threshold)
     uint8_t optimal = storage_get_optimal_humidity();
@@ -210,11 +210,10 @@ uint32_t watering_get_seconds_until_allowed() {
 }
 
 uint8_t watering_get_current_humidity() {
-    // Return cached value from last check, or read fresh
-    if (current_humidity == 0) {
+    if (current_humidity < 0) {
         current_humidity = sensor_read_humidity_percent();
     }
-    return current_humidity;
+    return (uint8_t)current_humidity;
 }
 
 bool watering_soil_needs_water() {
