@@ -4,7 +4,6 @@
 
 #include "leds.h"
 #include "config.h"
-#include "sensor.h"
 
 // =============================================================================
 // INITIALIZATION
@@ -143,11 +142,7 @@ void led_display_number(uint8_t value) {
     led_green_off();
 }
 
-void led_display_humidity() {
-    // Read current humidity
-    uint8_t humidity = sensor_read_humidity_percent();
-    
-    // Display the value
+void led_display_humidity(uint8_t humidity) {
     led_display_number(humidity);
 }
 
