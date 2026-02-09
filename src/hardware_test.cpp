@@ -51,8 +51,8 @@
 #define PIN_LED_GREEN       6
 #define PIN_LED_RED         7
 #define PIN_BTN_MAIN        0
-#define PIN_BTN_CAL_WET     1
-#define PIN_BTN_CAL_DRY     2
+#define PIN_BTN_CAL_WET     2
+#define PIN_BTN_CAL_DRY     1
 
 // Timing
 #define DEBOUNCE_MS         50

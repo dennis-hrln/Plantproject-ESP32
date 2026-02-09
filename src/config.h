@@ -31,12 +31,12 @@
 
 // Buttons (connect to GND when pressed, internal pull-ups enabled)
 #define PIN_BTN_MAIN            GPIO_NUM_0   // Main interaction button
-#define PIN_BTN_CAL_WET         GPIO_NUM_1   // Wet calibration button
+#define PIN_BTN_CAL_WET         GPIO_NUM_2   // Wet calibration button
 // WARNING: GPIO 2 is a strapping pin (MTMS) on ESP32-C3.
 // If this button is held during power-on/reset, the chip enters download mode.
 // Consider moving to GPIO 10 or another non-strapping GPIO if intermittent
 // boot failures occur.
-#define PIN_BTN_CAL_DRY         GPIO_NUM_2   // Dry calibration button
+#define PIN_BTN_CAL_DRY         GPIO_NUM_1   // Dry calibration button
 
 // Button wake-up mask for deep sleep (ext1)
 #define BUTTON_WAKE_MASK        ((1ULL << PIN_BTN_MAIN) | (1ULL << PIN_BTN_CAL_WET) | (1ULL << PIN_BTN_CAL_DRY))
@@ -69,7 +69,7 @@
 // =============================================================================
 
 // Capacitive sensors: higher value = drier soil (inverted)
-#define DEFAULT_SENSOR_DRY      3200    // Raw ADC when sensor is in air
+#define DEFAULT_SENSOR_DRY      3200    // Raw ADC when sensor is in dry earth
 #define DEFAULT_SENSOR_WET      1400    // Raw ADC when sensor is in water
 
 // =============================================================================
@@ -110,17 +110,17 @@
 
 #define BTN_DEBOUNCE_MS             50      // Debounce time
 #define BTN_LONG_PRESS_MS           2000    // Long press threshold
-#define MODE_TIMEOUT_MS             5000    // Mode timeout before returning to general
+#define MODE_TIMEOUT_MS             8000    // Mode timeout before returning to general
 #define HUMIDITY_STEP               5       // Optimal humidity adjustment step (%)
 
 // =============================================================================
 // LED TIMING (in milliseconds)
 // =============================================================================
 
-#define LED_FLASH_LONG_MS           600     // Long flash for tens digit
-#define LED_FLASH_SHORT_MS          200     // Short flash for ones digit
-#define LED_PAUSE_MS                300     // Pause between flashes
-#define LED_DIGIT_PAUSE_MS          1000    // Pause between digits
+#define LED_FLASH_LONG_MS           1200     // Long flash for tens digit
+#define LED_FLASH_SHORT_MS          400     // Short flash for ones digit
+#define LED_PAUSE_MS                400     // Pause between flashes
+#define LED_DIGIT_PAUSE_MS          1500    // Pause between digits
 
 // =============================================================================
 // NVS STORAGE KEYS
