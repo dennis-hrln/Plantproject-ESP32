@@ -75,30 +75,29 @@ void storage_set_last_watering_time(uint32_t timestamp) {
 // =============================================================================
 
 /**
- * Persistent time is calculated as:
- * total_time = stored_total_time + (boot_count * MEASUREMENT_INTERVAL_SEC)
- * 
- * Each boot adds the measurement interval to account for sleep time.
- * We also track additional awake time for accuracy.
+ * Persistent time is calculated by accumulating:
+ *   sleep_duration_sec  (time spent in deep sleep before this wake)
+ *   awake_duration_sec  (time spent awake during this cycle)
+ *
+ * Caller passes the appropriate sleep duration:
+ *   Timer wake  → MEASUREMENT_INTERVAL_SEC
+ *   Power-on    → 0 (no prior sleep)
+ *   Button wake → not called (no time added)
  */
 
 uint32_t storage_get_persistent_time() {
     return prefs.getULong(NVS_KEY_TOTAL_TIME, 0);
 }
 
-void storage_increment_boot_count(uint32_t awake_duration_sec) {
-    // Get current values
+void storage_increment_boot_count(uint32_t sleep_duration_sec,
+                                  uint32_t awake_duration_sec) {
     uint32_t boot_count = prefs.getULong(NVS_KEY_BOOT_COUNT, 0);
     uint32_t total_time = prefs.getULong(NVS_KEY_TOTAL_TIME, 0);
     
-    // Increment boot count
     boot_count++;
     prefs.putULong(NVS_KEY_BOOT_COUNT, boot_count);
     
-    // Add sleep interval plus awake time to total
-    // On timer wake, we slept for MEASUREMENT_INTERVAL_SEC
-    // On button wake, we still add the configured interval as approximation
-    total_time += MEASUREMENT_INTERVAL_SEC + awake_duration_sec;
+    total_time += sleep_duration_sec + awake_duration_sec;
     prefs.putULong(NVS_KEY_TOTAL_TIME, total_time);
 }
 
