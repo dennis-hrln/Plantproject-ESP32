@@ -11,13 +11,7 @@
 // =============================================================================
 
 void sensor_init() {
-    // Configure ADC for soil sensor pin
-    // ADC1 channels work even when WiFi is active
-    analogReadResolution(ADC_RESOLUTION);
-    analogSetAttenuation(ADC_ATTENUATION);  // 11dB = 0-3.3V range
-    
-    // Set pin mode (input-only pins like GPIO34/35 don't need this,
-    // but it doesn't hurt)
+    // ADC resolution + attenuation are configured globally in init_hardware()
     pinMode(PIN_SOIL_SENSOR, INPUT);
 }
 
@@ -41,53 +35,38 @@ uint16_t sensor_read_raw() {
 // PERCENTAGE CONVERSION
 // =============================================================================
 
-uint8_t sensor_read_humidity_percent() {
-    uint16_t raw = sensor_read_raw();
-    
+uint8_t sensor_raw_to_humidity_percent(uint16_t raw) {
     // Load calibration values from NVS
     uint16_t dry_value = storage_get_sensor_dry();   // High ADC = dry = 0%
     uint16_t wet_value = storage_get_sensor_wet();   // Low ADC = wet = 100%
     
-    // Capacitive sensors are INVERTED:
-    // - Higher ADC value = less moisture (drier)
-    // - Lower ADC value = more moisture (wetter)
-    
     // Prevent division by zero
     if (dry_value == wet_value) {
-        return 50;  // Return midpoint if calibration is invalid
+        return 50;
     }
-    
-    // Map from [dry_value, wet_value] to [0, 100]
-    // Since dry > wet (inverted sensor), we calculate:
-    // percent = (dry - raw) / (dry - wet) * 100
     
     int32_t percent;
     
     if (dry_value > wet_value) {
-        // Normal case: dry ADC > wet ADC (inverted sensor)
-        if (raw >= dry_value) {
-            percent = 0;
-        } else if (raw <= wet_value) {
-            percent = 100;
-        } else {
-            percent = (int32_t)(dry_value - raw) * 100 / (dry_value - wet_value);
-        }
+        // Normal case: dry ADC > wet ADC (inverted capacitive sensor)
+        if (raw >= dry_value)      percent = 0;
+        else if (raw <= wet_value) percent = 100;
+        else percent = (int32_t)(dry_value - raw) * 100 / (dry_value - wet_value);
     } else {
         // Unusual case: dry ADC < wet ADC (non-inverted sensor)
-        if (raw <= dry_value) {
-            percent = 0;
-        } else if (raw >= wet_value) {
-            percent = 100;
-        } else {
-            percent = (int32_t)(raw - dry_value) * 100 / (wet_value - dry_value);
-        }
+        if (raw <= dry_value)      percent = 0;
+        else if (raw >= wet_value) percent = 100;
+        else percent = (int32_t)(raw - dry_value) * 100 / (wet_value - dry_value);
     }
     
-    // Clamp to 0-100 range
-    if (percent < 0) percent = 0;
+    if (percent < 0)   percent = 0;
     if (percent > 100) percent = 100;
     
     return (uint8_t)percent;
+}
+
+uint8_t sensor_read_humidity_percent() {
+    return sensor_raw_to_humidity_percent(sensor_read_raw());
 }
 
 // =============================================================================
