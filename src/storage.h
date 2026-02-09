@@ -107,11 +107,13 @@ uint32_t storage_get_persistent_time();
 
 /**
  * Increment boot counter and update persistent time.
- * Call this once at each wake from deep sleep.
- * 
- * @param awake_duration_sec How long the ESP was awake this cycle
+ * Call this once per wake from deep sleep.
+ *
+ * @param sleep_duration_sec  How long the ESP was asleep (e.g. MEASUREMENT_INTERVAL_SEC on timer wake, 0 on power-on)
+ * @param awake_duration_sec  How long the ESP was awake this cycle
  */
-void storage_increment_boot_count(uint32_t awake_duration_sec);
+void storage_increment_boot_count(uint32_t sleep_duration_sec,
+                                  uint32_t awake_duration_sec);
 
 /**
  * Get total boot count.

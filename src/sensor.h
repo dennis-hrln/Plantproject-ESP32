@@ -33,11 +33,19 @@ void sensor_init();
 uint16_t sensor_read_raw();
 
 /**
- * Read soil humidity as percentage (0-100%).
+ * Convert a raw ADC value to humidity percentage (0-100%).
  * Uses stored wet/dry calibration values for conversion.
- * 
- * Calculation: Maps raw value between dry (0%) and wet (100%)
- * Note: Capacitive sensors are inverted (higher ADC = drier)
+ * Use this when you already have a raw reading to avoid a
+ * second ADC read.
+ *
+ * @param raw Raw ADC value to convert
+ * @return Humidity percentage (0-100), clamped to valid range
+ */
+uint8_t sensor_raw_to_humidity_percent(uint16_t raw);
+
+/**
+ * Read soil humidity as percentage (0-100%).
+ * Convenience wrapper: reads raw value then converts.
  * 
  * @return Humidity percentage (0-100), clamped to valid range
  */
