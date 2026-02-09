@@ -2,6 +2,10 @@
 
 **Edit this project interactively in [Cirkit Designer](https://app.cirkitdesigner.com/project/a6507e17-3860-47a8-9a6b-0286741713fa).**
 
+[![Cirkit Designer Preview](https://app.cirkitdesigner.com/api/project/a6507e17-3860-47a8-9a6b-0286741713fa/screenshot?width=800)](https://app.cirkitdesigner.com/project/a6507e17-3860-47a8-9a6b-0286741713fa?view=interactive_preview)
+
+**Edit this project interactively in [Cirkit Designer](https://app.cirkitdesigner.com/project/a6507e17-3860-47a8-9a6b-0286741713fa).**
+
 # ESP32 Single-Plant Automatic Watering System
 
 A production-quality, battery-powered automatic plant watering system using ESP32 with deep sleep for ultra-low power consumption.
@@ -181,8 +185,7 @@ ESP32 GPIO7 ──[220Ω]──> LED (+) ──> GND
 2. **Button Test**: Press Main button briefly. ESP32 should wake, LEDs may flash.
 3. **LED Test**: Code will test LEDs on first boot.
 4. **Sensor Test**: Check Serial Monitor (115200 baud) for sensor readings.
-5. **Pump Test**: Use manual watering (long-press Main). Pump should run 3 seconds.
-
+5. **Pump Test**: Long-press the Main button for manual watering. The pump should run for 3 seconds.
 ---
 
 ## Button Operations
