@@ -21,6 +21,9 @@
  */
 
 #include <Arduino.h>
+#include "esp_sleep.h"
+#include "driver/gpio.h"
+#include "soc/soc_caps.h"
 #include "config.h"
 #include "storage.h"
 #include "sensor.h"
@@ -52,8 +55,13 @@ WakeReason determine_wake_reason() {
         case ESP_SLEEP_WAKEUP_TIMER:
             return WAKE_TIMER;
             
-        case ESP_SLEEP_WAKEUP_EXT0:
-        case ESP_SLEEP_WAKEUP_EXT1:
+        case ESP_SLEEP_WAKEUP_GPIO:      // ESP32-C3 GPIO deep/light sleep wake
+#if SOC_PM_SUPPORT_EXT0_WAKEUP
+        case ESP_SLEEP_WAKEUP_EXT0:      // Original ESP32 only
+#endif
+#if SOC_PM_SUPPORT_EXT1_WAKEUP
+        case ESP_SLEEP_WAKEUP_EXT1:      // Original ESP32 only
+#endif
             return WAKE_BUTTON;
             
         case ESP_SLEEP_WAKEUP_UNDEFINED:
@@ -82,17 +90,25 @@ void enter_deep_sleep() {
     // Close NVS cleanly
     storage_close();
     
+    // Turn off LEDs before sleep
+    leds_all_off();
+    
     // Configure timer wake (periodic measurement interval)
     esp_sleep_enable_timer_wakeup(MEASUREMENT_INTERVAL_SEC * SEC_TO_US);
     
-    // Configure GPIO wake for buttons (ESP32-C3 compatible)
-    // Enable GPIO wakeup mode globally
-    esp_sleep_enable_gpio_wakeup();
+    // Configure GPIO wake for buttons (ESP32-C3 deep sleep compatible)
+    // ESP32-C3 does NOT support ext0/ext1 wake. It uses esp_deep_sleep_enable_gpio_wakeup()
+    // which is available in ESP-IDF 5.0+ / Arduino ESP32 core 3.0+.
+    uint64_t wake_mask = (1ULL << PIN_BTN_MAIN) | 
+                         (1ULL << PIN_BTN_CAL_WET) | 
+                         (1ULL << PIN_BTN_CAL_DRY);
+    esp_deep_sleep_enable_gpio_wakeup(wake_mask, ESP_GPIO_WAKEUP_GPIO_LOW);
     
-    // Configure each button pin to wake on LOW level (pressed = LOW due to pull-up)
-    gpio_wakeup_enable(PIN_BTN_MAIN, GPIO_INTR_LOW_LEVEL);
-    gpio_wakeup_enable(PIN_BTN_CAL_WET, GPIO_INTR_LOW_LEVEL);
-    gpio_wakeup_enable(PIN_BTN_CAL_DRY, GPIO_INTR_LOW_LEVEL);
+    // Hold GPIO pull-up configuration during deep sleep
+    gpio_hold_en(PIN_BTN_MAIN);
+    gpio_hold_en(PIN_BTN_CAL_WET);
+    gpio_hold_en(PIN_BTN_CAL_DRY);
+    gpio_deep_sleep_hold_en();
     
     // Enter deep sleep (function does not return)
     esp_deep_sleep_start();
@@ -107,6 +123,12 @@ void enter_deep_sleep() {
  * Called once after each wake from deep sleep.
  */
 void init_hardware() {
+    // Release GPIO holds from deep sleep so pins can be reconfigured
+    gpio_hold_dis(PIN_BTN_MAIN);
+    gpio_hold_dis(PIN_BTN_CAL_WET);
+    gpio_hold_dis(PIN_BTN_CAL_DRY);
+    gpio_deep_sleep_hold_dis();
+    
     // Initialize storage first (needed by other modules)
     storage_init();
     

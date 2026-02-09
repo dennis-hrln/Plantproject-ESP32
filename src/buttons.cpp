@@ -15,25 +15,189 @@
 
 /**
  * Get GPIO pin for button ID.
+ * Returns -1 for invalid button (not 0, since GPIO 0 is a valid pin).
  */
-static uint8_t get_button_pin(ButtonId button) {
+static int get_button_pin(ButtonId button) {
     switch (button) {
-        case BTN_MAIN:      return PIN_BTN_MAIN;
-        case BTN_CAL_WET:   return PIN_BTN_CAL_WET;
-        case BTN_CAL_DRY:   return PIN_BTN_CAL_DRY;
-        default:            return 0;
+        case BTN_MAIN:      return (int)PIN_BTN_MAIN;
+        case BTN_CAL_WET:   return (int)PIN_BTN_CAL_WET;
+        case BTN_CAL_DRY:   return (int)PIN_BTN_CAL_DRY;
+        default:            return -1;
     }
 }
 
 /**
- * Read button with debouncing.
+ * Read button with non-blocking debouncing.
  */
-static bool read_button_debounced(uint8_t pin) {
-    if (digitalRead(pin) == LOW) {  // Pressed (pull-up)
-        delay(BTN_DEBOUNCE_MS);
-        return (digitalRead(pin) == LOW);  // Still pressed
+static uint8_t get_button_index(ButtonId button) {
+    switch (button) {
+        case BTN_MAIN:      return 0;
+        case BTN_CAL_WET:   return 1;
+        case BTN_CAL_DRY:   return 2;
+        default:            return 255;
     }
-    return false;
+}
+
+static bool read_button_debounced(ButtonId button) {
+    const int pin = get_button_pin(button);
+    const uint8_t index = get_button_index(button);
+
+    if (pin < 0 || index > 2) {
+        return false;
+    }
+
+    static bool last_raw[3] = {false, false, false};
+    static bool stable_state[3] = {false, false, false};
+    static uint32_t last_change_ms[3] = {0, 0, 0};
+
+    const uint32_t now = millis();
+    const bool raw = (digitalRead((uint8_t)pin) == LOW);  // Pressed = LOW (pull-up)
+
+    if (raw != last_raw[index]) {
+        last_raw[index] = raw;
+        last_change_ms[index] = now;
+    }
+
+    if ((now - last_change_ms[index]) >= BTN_DEBOUNCE_MS) {
+        stable_state[index] = raw;
+    }
+
+    return stable_state[index];
+}
+
+typedef enum {
+    PRESS_NONE,
+    PRESS_SHORT,
+    PRESS_LONG
+} ButtonPress;
+
+typedef enum {
+    MODE_GENERAL,
+    MODE_PLANT_WATERING,
+    MODE_DISPLAY_HUMIDITY,
+    MODE_DISPLAY_OPTIMAL_HUMIDITY,
+    MODE_CALIBRATION_MODE,
+    MODE_CALIBRATE_DRY,
+    MODE_CALIBRATE_WET,
+    MODE_SET_OPTIMAL_HUMIDITY,
+    MODE_LOWER_OPT_HUMIDITY,
+    MODE_ADD_OPT_HUMIDITY
+} ButtonMode;
+
+static ButtonPress s_button_presses[3] = {PRESS_NONE, PRESS_NONE, PRESS_NONE};
+static bool s_button_is_down[3] = {false, false, false};
+static bool s_long_reported[3] = {false, false, false};
+static uint32_t s_press_start_ms[3] = {0, 0, 0};
+static uint32_t s_last_change_ms[3] = {0, 0, 0};
+
+static void reset_buttons() {
+    for (uint8_t i = 0; i < 3; ++i) {
+        s_button_presses[i] = PRESS_NONE;
+    }
+}
+
+static void reset_button_states() {
+    for (uint8_t i = 0; i < 3; ++i) {
+        s_button_is_down[i] = false;
+        s_long_reported[i] = false;
+        s_press_start_ms[i] = 0;
+        s_last_change_ms[i] = 0;
+    }
+}
+
+static bool press_list_matches(const ButtonPress presses[3],
+                               ButtonPress p0,
+                               ButtonPress p1,
+                               ButtonPress p2) {
+    return presses[0] == p0 && presses[1] == p1 && presses[2] == p2;
+}
+
+static bool buttons_check_presses(ButtonPress out_presses[3]) {
+    const uint32_t now = millis();
+    bool any_pressed = false;
+    const ButtonId ids[3] = {BTN_MAIN, BTN_CAL_WET, BTN_CAL_DRY};
+
+    for (uint8_t i = 0; i < 3; ++i) {
+        const bool pressed = read_button_debounced(ids[i]);
+        if (pressed) {
+            any_pressed = true;
+        }
+
+        if (pressed) {
+            if (!s_button_is_down[i]) {
+                if ((now - s_last_change_ms[i]) >= BTN_DEBOUNCE_MS) {
+                    s_button_is_down[i] = true;
+                    s_press_start_ms[i] = now;
+                    s_long_reported[i] = false;
+                    s_last_change_ms[i] = now;
+                }
+            } else if (!s_long_reported[i] &&
+                       (now - s_press_start_ms[i]) >= BTN_LONG_PRESS_MS) {
+                s_button_presses[i] = PRESS_LONG;
+                s_long_reported[i] = true;
+            }
+        } else if (s_button_is_down[i]) {
+            if (!s_long_reported[i]) {
+                s_button_presses[i] = PRESS_SHORT;
+            }
+            s_button_is_down[i] = false;
+            s_last_change_ms[i] = now;
+        }
+    }
+
+    if (any_pressed) {
+        return false;
+    }
+
+    for (uint8_t i = 0; i < 3; ++i) {
+        out_presses[i] = s_button_presses[i];
+    }
+
+    return true;
+}
+
+static ButtonMode check_mode_timeout(ButtonMode mode, uint32_t last_mode_change_ms) {
+    if (mode != MODE_GENERAL && (millis() - last_mode_change_ms) > MODE_TIMEOUT_MS) {
+        return MODE_GENERAL;
+    }
+    return mode;
+}
+
+static ButtonMode actioncheck(ButtonMode mode,
+                              uint32_t last_mode_change_ms,
+                              const ButtonPress presses[3]) {
+    mode = check_mode_timeout(mode, last_mode_change_ms);
+
+    if (mode == MODE_GENERAL) {
+        if (press_list_matches(presses, PRESS_NONE, PRESS_NONE, PRESS_NONE)) {
+            // Do nothing
+        } else if (press_list_matches(presses, PRESS_LONG, PRESS_NONE, PRESS_NONE)) {
+            mode = MODE_PLANT_WATERING;
+        } else if (press_list_matches(presses, PRESS_NONE, PRESS_LONG, PRESS_LONG)) {
+            mode = MODE_CALIBRATION_MODE;
+        } else if (press_list_matches(presses, PRESS_LONG, PRESS_LONG, PRESS_LONG)) {
+            mode = MODE_SET_OPTIMAL_HUMIDITY;
+        } else if (press_list_matches(presses, PRESS_SHORT, PRESS_NONE, PRESS_NONE)) {
+            mode = MODE_DISPLAY_HUMIDITY;
+        } else if (press_list_matches(presses, PRESS_NONE, PRESS_NONE, PRESS_SHORT)) {
+            mode = MODE_DISPLAY_OPTIMAL_HUMIDITY;
+        }
+    } else if (mode == MODE_CALIBRATION_MODE) {
+        if (press_list_matches(presses, PRESS_NONE, PRESS_LONG, PRESS_NONE)) {
+            mode = MODE_CALIBRATE_DRY;
+        } else if (press_list_matches(presses, PRESS_NONE, PRESS_NONE, PRESS_LONG)) {
+            mode = MODE_CALIBRATE_WET;
+        }
+    } else if (mode == MODE_SET_OPTIMAL_HUMIDITY) {
+        if (press_list_matches(presses, PRESS_NONE, PRESS_SHORT, PRESS_NONE)) {
+            mode = MODE_LOWER_OPT_HUMIDITY;
+        } else if (press_list_matches(presses, PRESS_NONE, PRESS_NONE, PRESS_SHORT)) {
+            mode = MODE_ADD_OPT_HUMIDITY;
+        }
+    }
+
+    reset_buttons();
+    return mode;
 }
 
 // =============================================================================
@@ -47,332 +211,72 @@ void buttons_init() {
 }
 
 // =============================================================================
-// READING FUNCTIONS
-// =============================================================================
-
-bool button_is_pressed(ButtonId button) {
-    uint8_t pin = get_button_pin(button);
-    if (pin == 0) return false;
-    
-    return read_button_debounced(pin);
-}
-
-ButtonState button_check() {
-    ButtonState state = {BTN_NONE, BTN_EVENT_NONE, 0};
-    
-    if (button_is_pressed(BTN_MAIN)) {
-        state.button = BTN_MAIN;
-        state.event = BTN_EVENT_SHORT_PRESS;  // Will be updated on release
-    } else if (button_is_pressed(BTN_CAL_WET)) {
-        state.button = BTN_CAL_WET;
-        state.event = BTN_EVENT_SHORT_PRESS;
-    } else if (button_is_pressed(BTN_CAL_DRY)) {
-        state.button = BTN_CAL_DRY;
-        state.event = BTN_EVENT_SHORT_PRESS;
-    }
-    
-    return state;
-}
-
-ButtonState button_wait_event(uint32_t timeout_ms) {
-    ButtonState state = {BTN_NONE, BTN_EVENT_NONE, 0};
-    uint32_t start = millis();
-    
-    // Wait for a button to be pressed
-    while (true) {
-        if (timeout_ms > 0 && (millis() - start) > timeout_ms) {
-            return state;  // Timeout
-        }
-        
-        state = button_check();
-        if (state.button != BTN_NONE) {
-            break;  // Button detected
-        }
-        delay(10);
-    }
-    
-    // Button is pressed, measure hold duration
-    uint32_t press_start = millis();
-    
-    while (button_is_pressed(state.button)) {
-        state.press_duration_ms = millis() - press_start;
-        
-        // Provide feedback when reaching long press threshold
-        if (state.press_duration_ms >= BTN_LONG_PRESS_MS && 
-            state.event != BTN_EVENT_LONG_PRESS) {
-            state.event = BTN_EVENT_LONG_PRESS;
-            // Brief LED feedback that long press registered
-            led_green_on();
-            delay(50);
-            led_green_off();
-        }
-        
-        delay(10);
-    }
-    
-    // Button released
-    if (state.event != BTN_EVENT_LONG_PRESS) {
-        state.event = BTN_EVENT_SHORT_PRESS;
-    }
-    
-    return state;
-}
-
-// =============================================================================
-// LONG PRESS DETECTION
-// =============================================================================
-
-bool button_wait_long_press(ButtonId button) {
-    uint32_t start = millis();
-    
-    while (button_is_pressed(button)) {
-        if ((millis() - start) >= BTN_LONG_PRESS_MS) {
-            return true;  // Long press achieved
-        }
-        delay(10);
-    }
-    
-    return false;  // Released too soon
-}
-
-uint32_t button_wait_release(ButtonId button) {
-    uint32_t start = millis();
-    
-    while (button_is_pressed(button)) {
-        delay(10);
-    }
-    
-    return millis() - start;
-}
-
-// =============================================================================
-// COMBINATION DETECTION
-// =============================================================================
-
-bool buttons_calibration_combo_pressed() {
-    // Both calibration buttons must be pressed
-    return button_is_pressed(BTN_CAL_WET) && button_is_pressed(BTN_CAL_DRY);
-}
-
-bool buttons_full_combo_pressed() {
-    // All three buttons pressed
-    return button_is_pressed(BTN_MAIN) && 
-           button_is_pressed(BTN_CAL_WET) && 
-           button_is_pressed(BTN_CAL_DRY);
-}
-
-// =============================================================================
 // HIGH-LEVEL INTERACTION HANDLER
 // =============================================================================
 
-/**
- * Handle calibration mode.
- * Entry requires both calibration buttons pressed + main button long press.
- * Then release and long-press individual calibration button.
- * 
- * SAFETY: Requires 3-button combo held for 2+ seconds, then individual 
- * calibration button long-press. Accidental calibration is virtually impossible.
- */
-static void handle_calibration_mode() {
+static void perform_manual_watering() {
     #ifdef DEBUG_SERIAL
-    // Serial.println("Entered calibration mode");
+    // Serial.println("Manual watering requested");
     #endif
-    
-    // Confirm entering calibration mode with distinctive pattern
-    led_show_calibration_confirm();
-    
-    // Wait for all buttons to be released
-    while (button_is_pressed(BTN_MAIN) || 
-           button_is_pressed(BTN_CAL_WET) || 
-           button_is_pressed(BTN_CAL_DRY)) {
-        delay(10);
-    }
-    
-    // Indicate waiting for calibration selection
-    // Green LED breathing/slow blink to show we're in calibration mode
-    uint32_t start = millis();
-    bool led_state = false;
-    
-    // Now wait for individual calibration button long press
-    // Timeout after 10 seconds
-    while ((millis() - start) < 10000) {
-        // Blink green slowly to indicate waiting
-        if (((millis() - start) / 500) % 2 != led_state) {
-            led_state = !led_state;
-            if (led_state) led_green_on();
-            else led_green_off();
-        }
-        
-        if (button_is_pressed(BTN_CAL_WET)) {
-            led_green_off();
-            #ifdef DEBUG_SERIAL
-            // Serial.println("Wet calibration button detected, waiting for long press...");
-            #endif
-            
-            // Wait for long press with visual feedback
-            uint32_t press_start = millis();
-            while (button_is_pressed(BTN_CAL_WET)) {
-                uint32_t held = millis() - press_start;
-                
-                // Progressive LED feedback
-                if (held > BTN_LONG_PRESS_MS) {
-                    // Long press achieved - perform calibration
-                    led_green_on();
-                    uint16_t raw = sensor_calibrate_wet();
-                    
-                    #ifdef DEBUG_SERIAL
-                    // Serial.print("Wet calibration complete. Raw value: ");
-                    // Serial.println(raw);
-                    #endif
-                    
-                    // Wait for release
-                    while (button_is_pressed(BTN_CAL_WET)) delay(10);
-                    
-                    led_green_off();
-                    led_show_success();
-                    return;
-                }
-                
-                // Visual progress indicator
-                if ((held / 200) % 2) led_green_on();
-                else led_green_off();
-                
-                delay(10);
-            }
-            // Released too soon
-            led_green_off();
-        }
-        
-        if (button_is_pressed(BTN_CAL_DRY)) {
-            led_green_off();
-            #ifdef DEBUG_SERIAL
-            // Serial.println("Dry calibration button detected, waiting for long press...");
-            #endif
-            
-            // Wait for long press with visual feedback
-            uint32_t press_start = millis();
-            while (button_is_pressed(BTN_CAL_DRY)) {
-                uint32_t held = millis() - press_start;
-                
-                // Progressive LED feedback
-                if (held > BTN_LONG_PRESS_MS) {
-                    // Long press achieved - perform calibration
-                    led_red_on();
-                    uint16_t raw = sensor_calibrate_dry();
-                    
-                    #ifdef DEBUG_SERIAL
-                    // Serial.print("Dry calibration complete. Raw value: ");
-                    // Serial.println(raw);
-                    #endif
-                    
-                    // Wait for release
-                    while (button_is_pressed(BTN_CAL_DRY)) delay(10);
-                    
-                    led_red_off();
-                    led_show_success();
-                    return;
-                }
-                
-                // Visual progress indicator (red for dry)
-                if ((held / 200) % 2) led_red_on();
-                else led_red_off();
-                
-                delay(10);
-            }
-            // Released too soon
-            led_red_off();
-        }
-        
-        delay(10);
-    }
-    
-    // Timeout - exit without calibration
-    led_green_off();
-    led_show_error();
-    
+
+    led_green_blink(2, 100);
+    WateringResult result = watering_manual(false);
+
     #ifdef DEBUG_SERIAL
-    // Serial.println("Calibration mode timeout - no action taken");
+    // Serial.print("Watering result: ");
+    // Serial.println((int)result);
     #endif
+
+    if (result == WATER_OK) {
+        led_show_success();
+    } else if (result == WATER_TOO_SOON) {
+        led_red_blink(3, 200);
+    } else if (result == WATER_BATTERY_LOW) {
+        led_show_battery_critical();
+    } else {
+        led_show_error();
+    }
 }
 
-/**
- * Handle optimal humidity adjustment.
- * Entry: Main + WET calibration button held together.
- * Then short presses on WET (increase) or DRY (decrease) adjust value.
- * 
- * UI: 
- * - Shows current value via LED flashes
- * - Green blink = increase (+5%)
- * - Red blink = decrease (-5%)
- * - Auto-saves after 5 seconds of no input
- */
-static void handle_humidity_adjustment() {
+static void perform_display_humidity() {
+    #ifdef DEBUG_SERIAL
+    uint8_t h = sensor_read_humidity_percent();
+    // Serial.print("Displaying humidity: ");
+    // Serial.print(h);
+    // Serial.println("%");
+    #endif
+
+    led_display_humidity();
+}
+
+static void perform_display_optimal_humidity() {
     uint8_t current = storage_get_optimal_humidity();
-    
-    #ifdef DEBUG_SERIAL
-    // Serial.print("Entering humidity adjustment. Current: ");
-    // Serial.print(current);
-    // Serial.println("%");
-    #endif
-    
-    // Wait for buttons to be released first
-    while (button_is_pressed(BTN_MAIN) || button_is_pressed(BTN_CAL_WET)) {
-        delay(10);
-    }
-    
-    // Indicate current value
-    delay(500);
     led_display_number(current);
-    delay(500);
-    
-    // Wait for adjustment presses (timeout 5 seconds between presses)
-    uint32_t last_press = millis();
-    
-    while ((millis() - last_press) < 5000) {
-        if (button_is_pressed(BTN_CAL_WET)) {
-            // Increase humidity by 5%
-            if (current <= 95) {
-                current += 5;
-                #ifdef DEBUG_SERIAL
-                // Serial.print("Humidity +5% = ");
-                // Serial.println(current);
-                #endif
-            }
-            led_green_blink(1, 150);
-            last_press = millis();
-            button_wait_release(BTN_CAL_WET);
-        }
-        
-        if (button_is_pressed(BTN_CAL_DRY)) {
-            // Decrease humidity by 5%
-            if (current >= 5) {
-                current -= 5;
-                #ifdef DEBUG_SERIAL
-                // Serial.print("Humidity -5% = ");
-                // Serial.println(current);
-                #endif
-            }
-            led_red_blink(1, 150);
-            last_press = millis();
-            button_wait_release(BTN_CAL_DRY);
-        }
-        
-        delay(10);
-    }
-    
-    // Save new value
-    storage_set_optimal_humidity(current);
-    
+}
+
+static void perform_calibrate_wet() {
+    led_green_on();
+    uint16_t raw = sensor_calibrate_wet();
+
     #ifdef DEBUG_SERIAL
-    // Serial.print("Humidity adjustment saved: ");
-    // Serial.print(current);
-    // Serial.println("%");
+    // Serial.print("Wet calibration complete. Raw value: ");
+    // Serial.println(raw);
     #endif
-    
-    // Display final value and confirm save
-    delay(300);
-    led_display_number(current);
-    delay(500);
+
+    led_green_off();
+    led_show_success();
+}
+
+static void perform_calibrate_dry() {
+    led_red_on();
+    uint16_t raw = sensor_calibrate_dry();
+
+    #ifdef DEBUG_SERIAL
+    // Serial.print("Dry calibration complete. Raw value: ");
+    // Serial.println(raw);
+    #endif
+
+    led_red_off();
     led_show_success();
 }
 
@@ -380,209 +284,125 @@ void buttons_handle_interaction_with_wake(uint64_t wake_mask) {
     #ifdef DEBUG_SERIAL
     // Serial.println("Button wake - handling interaction");
     #endif
-    
-    // Initial debounce
+
+    (void)wake_mask;
+
     delay(BTN_DEBOUNCE_MS);
-    
-    // Check for special combinations first
-    
-    // Full combo (all 3 buttons) → calibration mode entry
-    // SAFETY: Requires all 3 buttons held for 2+ seconds
-    if (buttons_full_combo_pressed()) {
-        #ifdef DEBUG_SERIAL
-        // Serial.println("Full combo detected, waiting for long press...");
-        #endif
-        
-        // Wait for long press while holding
-        uint32_t start = millis();
-        
-        // Visual feedback during hold
-        while (buttons_full_combo_pressed() && 
-               (millis() - start) < BTN_LONG_PRESS_MS) {
-            // Both LEDs pulse to indicate combo detected
-            if (((millis() - start) / 100) % 2) {
-                led_green_on();
-                led_red_on();
-            } else {
-                led_green_off();
-                led_red_off();
-            }
+    reset_buttons();
+    reset_button_states();
+
+    ButtonMode mode = MODE_GENERAL;
+    uint32_t last_mode_change_ms = millis();
+    uint32_t start = millis();
+    bool calibration_prompted = false;
+    bool optimal_prompted = false;
+    uint8_t optimal_value = 0;
+    bool optimal_loaded = false;
+
+    while ((millis() - start) < MODE_TIMEOUT_MS) {
+        ButtonPress presses[3] = {PRESS_NONE, PRESS_NONE, PRESS_NONE};
+
+        if (!buttons_check_presses(presses)) {
             delay(10);
+            continue;
         }
-        
-        leds_all_off();
-        
-        if ((millis() - start) >= BTN_LONG_PRESS_MS && buttons_full_combo_pressed()) {
-            handle_calibration_mode();
-            return;
-        }
-    }
-    
-    // Main + WET calibration → humidity adjustment
-    // SAFETY: Requires 2-button combo + long press
-    if (button_is_pressed(BTN_MAIN) && button_is_pressed(BTN_CAL_WET)) {
-        #ifdef DEBUG_SERIAL
-        // Serial.println("Main + Wet combo detected, waiting for long press...");
-        #endif
-        
-        uint32_t start = millis();
-        
-        // Visual feedback
-        while (button_is_pressed(BTN_MAIN) && button_is_pressed(BTN_CAL_WET) &&
-               (millis() - start) < BTN_LONG_PRESS_MS) {
-            if (((millis() - start) / 150) % 2) {
-                led_green_on();
-            } else {
-                led_green_off();
+
+        ButtonMode new_mode = actioncheck(mode, last_mode_change_ms, presses);
+        const bool mode_changed = (new_mode != mode);
+
+        if (mode_changed) {
+            mode = new_mode;
+            last_mode_change_ms = millis();
+            calibration_prompted = false;
+            optimal_prompted = false;
+            if (mode == MODE_SET_OPTIMAL_HUMIDITY) {
+                optimal_loaded = false;
             }
-            delay(10);
-        }
-        
-        led_green_off();
-        
-        if ((millis() - start) >= BTN_LONG_PRESS_MS) {
-            handle_humidity_adjustment();
-            return;
-        }
-    }
-    
-    // Single button actions
-    // If a button is still held right after wake, treat it as the event
-    ButtonState state = {BTN_NONE, BTN_EVENT_NONE, 0};
-    bool have_state = false;
-
-    ButtonId held_button = BTN_NONE;
-    if (button_is_pressed(BTN_MAIN)) {
-        held_button = BTN_MAIN;
-    } else if (button_is_pressed(BTN_CAL_WET)) {
-        held_button = BTN_CAL_WET;
-    } else if (button_is_pressed(BTN_CAL_DRY)) {
-        held_button = BTN_CAL_DRY;
-    }
-
-    if (held_button != BTN_NONE) {
-        state.button = held_button;
-        uint32_t press_start = millis();
-
-        while (button_is_pressed(held_button)) {
-            state.press_duration_ms = millis() - press_start;
-            if (state.press_duration_ms >= BTN_LONG_PRESS_MS) {
-                state.event = BTN_EVENT_LONG_PRESS;
-            }
-            delay(10);
         }
 
-        if (state.event != BTN_EVENT_LONG_PRESS) {
-            state.event = BTN_EVENT_SHORT_PRESS;
-        }
-        have_state = true;
-    }
+        switch (mode) {
+            case MODE_GENERAL:
+                // No action in general mode without a matching press sequence.
+                break;
 
-    if (!have_state && wake_mask != 0) {
-        const uint64_t main_mask = 1ULL << PIN_BTN_MAIN;
-        const uint64_t wet_mask = 1ULL << PIN_BTN_CAL_WET;
-        const uint64_t dry_mask = 1ULL << PIN_BTN_CAL_DRY;
+            case MODE_PLANT_WATERING:
+                perform_manual_watering();
+                return;
 
-        int wake_count = 0;
-        ButtonId wake_button = BTN_NONE;
+            case MODE_DISPLAY_HUMIDITY:
+                perform_display_humidity();
+                return;
 
-        if (wake_mask & main_mask) {
-            wake_button = BTN_MAIN;
-            wake_count++;
-        }
-        if (wake_mask & wet_mask) {
-            wake_button = BTN_CAL_WET;
-            wake_count++;
-        }
-        if (wake_mask & dry_mask) {
-            wake_button = BTN_CAL_DRY;
-            wake_count++;
-        }
+            case MODE_DISPLAY_OPTIMAL_HUMIDITY:
+                perform_display_optimal_humidity();
+                return;
 
-        if (wake_count == 1) {
-            state.button = wake_button;
-            state.event = BTN_EVENT_SHORT_PRESS;
-            state.press_duration_ms = 0;
-            have_state = true;
-        }
-    }
-
-    if (!have_state) {
-        state = button_wait_event(5000);  // 5 second timeout
-    }
-    
-    #ifdef DEBUG_SERIAL
-    // Serial.print("Button event: btn=");
-    // Serial.print(state.button);
-    // Serial.print(" event=");
-    // Serial.print(state.event);
-    // Serial.print(" duration=");
-    // Serial.println(state.press_duration_ms);
-    #endif
-    
-    switch (state.button) {
-        case BTN_MAIN:
-            if (state.event == BTN_EVENT_LONG_PRESS) {
-                // Long press → manual watering
-                #ifdef DEBUG_SERIAL
-                // Serial.println("Manual watering requested");
-                #endif
-                
-                // Brief confirmation before watering
-                led_green_blink(2, 100);
-                
-                WateringResult result = watering_manual(false);
-                
-                #ifdef DEBUG_SERIAL
-                // Serial.print("Watering result: ");
-                // Serial.println((int)result);
-                #endif
-                
-                if (result == WATER_OK) {
-                    led_show_success();
-                } else if (result == WATER_TOO_SOON) {
-                    // Indicate time remaining with red blinks
-                    led_red_blink(3, 200);
-                } else if (result == WATER_BATTERY_LOW) {
-                    led_show_battery_critical();
-                } else {
-                    led_show_error();
+            case MODE_CALIBRATION_MODE:
+                if (!calibration_prompted) {
+                    led_show_calibration_confirm();
+                    calibration_prompted = true;
                 }
-            } else if (state.event == BTN_EVENT_SHORT_PRESS) {
-                // Short press → display humidity
-                #ifdef DEBUG_SERIAL
-                uint8_t h = sensor_read_humidity_percent();
-                // Serial.print("Displaying humidity: ");
-                // Serial.print(h);
-                // Serial.println("%");
-                #endif
-                
-                led_display_humidity();
-            }
-            break;
-            
-        case BTN_CAL_WET:
-        case BTN_CAL_DRY:
-            // Single press on calibration buttons without combo does nothing
-            // (prevents accidental calibration)
-            // Feedback: single red blink to indicate "no action"
-            led_red_blink(1, 100);
-            
-            #ifdef DEBUG_SERIAL
-            // Serial.println("Calibration button pressed alone - no action (safety)");
-            #endif
-            break;
-            
-        case BTN_NONE:
-            // Timeout or no button - just return to sleep
-            #ifdef DEBUG_SERIAL
-            // Serial.println("No button event detected");
-            #endif
-            break;
-            
-        default:
-            break;
+                break;
+
+            case MODE_CALIBRATE_DRY:
+                perform_calibrate_dry();
+                return;
+
+            case MODE_CALIBRATE_WET:
+                perform_calibrate_wet();
+                return;
+
+            case MODE_SET_OPTIMAL_HUMIDITY:
+                if (!optimal_loaded) {
+                    optimal_value = storage_get_optimal_humidity();
+                    optimal_loaded = true;
+                }
+                if (!optimal_prompted) {
+                    led_display_number(optimal_value);
+                    optimal_prompted = true;
+                }
+                break;
+
+            case MODE_LOWER_OPT_HUMIDITY:
+                if (!optimal_loaded) {
+                    optimal_value = storage_get_optimal_humidity();
+                    optimal_loaded = true;
+                }
+                if (optimal_value >= 5) {
+                    optimal_value -= 5;
+                }
+                storage_set_optimal_humidity(optimal_value);
+                led_red_blink(1, 150);
+                mode = MODE_SET_OPTIMAL_HUMIDITY;
+                last_mode_change_ms = millis();
+                optimal_prompted = false;
+                break;
+
+            case MODE_ADD_OPT_HUMIDITY:
+                if (!optimal_loaded) {
+                    optimal_value = storage_get_optimal_humidity();
+                    optimal_loaded = true;
+                }
+                if (optimal_value <= 95) {
+                    optimal_value += 5;
+                }
+                storage_set_optimal_humidity(optimal_value);
+                led_green_blink(1, 150);
+                mode = MODE_SET_OPTIMAL_HUMIDITY;
+                last_mode_change_ms = millis();
+                optimal_prompted = false;
+                break;
+
+            default:
+                break;
+        }
+
+        delay(10);
     }
+
+    #ifdef DEBUG_SERIAL
+    // Serial.println("No button event detected");
+    #endif
 }
 
 void buttons_handle_interaction() {

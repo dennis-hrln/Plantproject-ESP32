@@ -32,6 +32,10 @@
 // Buttons (connect to GND when pressed, internal pull-ups enabled)
 #define PIN_BTN_MAIN            GPIO_NUM_0   // Main interaction button
 #define PIN_BTN_CAL_WET         GPIO_NUM_1   // Wet calibration button
+// WARNING: GPIO 2 is a strapping pin (MTMS) on ESP32-C3.
+// If this button is held during power-on/reset, the chip enters download mode.
+// Consider moving to GPIO 10 or another non-strapping GPIO if intermittent
+// boot failures occur.
 #define PIN_BTN_CAL_DRY         GPIO_NUM_2   // Dry calibration button
 
 // Button wake-up mask for deep sleep (ext1)
@@ -99,6 +103,7 @@
 #define BTN_DEBOUNCE_MS             50      // Debounce time
 #define BTN_LONG_PRESS_MS           2000    // Long press threshold
 #define BTN_COMBO_WINDOW_MS         500     // Window for multi-button combo
+#define MODE_TIMEOUT_MS             5000    // Mode timeout before returning to general
 
 // =============================================================================
 // LED TIMING (in milliseconds)
