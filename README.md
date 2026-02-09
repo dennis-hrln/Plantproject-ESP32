@@ -1,9 +1,6 @@
-<!-- Cirkit Designer Interactive Preview -->
-<div style="position: relative; width: 100%; padding-top: calc(max(56.25%, 400px));">
-  <iframe src="https://app.cirkitdesigner.com/project/a6507e17-3860-47a8-9a6b-0286741713fa?view=interactive_preview" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;"></iframe>
-</div>
-<!--Please include the following link, which help us continue to improve and support the embed, making it a valuable tool for your audience.-->
-<p style="margin-top: 5px;">Edit this project interactively in <a href="https://app.cirkitdesigner.com/project/a6507e17-3860-47a8-9a6b-0286741713fa" target="_blank">Cirkit Designer</a>.</p>
+[![Cirkit Designer Preview](https://app.cirkitdesigner.com/api/project/a6507e17-3860-47a8-9a6b-0286741713fa/screenshot?width=800)](https://app.cirkitdesigner.com/project/a6507e17-3860-47a8-9a6b-0286741713fa?view=interactive_preview)
+
+**Edit this project interactively in [Cirkit Designer](https://app.cirkitdesigner.com/project/a6507e17-3860-47a8-9a6b-0286741713fa).**
 
 # ESP32 Single-Plant Automatic Watering System
 
