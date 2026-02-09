@@ -1,3 +1,10 @@
+<!-- Cirkit Designer Interactive Preview -->
+<div style="position: relative; width: 100%; padding-top: calc(max(56.25%, 400px));">
+  <iframe src="https://app.cirkitdesigner.com/project/a6507e17-3860-47a8-9a6b-0286741713fa?view=interactive_preview" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;"></iframe>
+</div>
+<!--Please include the following link, which help us continue to improve and support the embed, making it a valuable tool for your audience.-->
+<p style="margin-top: 5px;">Edit this project interactively in <a href="https://app.cirkitdesigner.com/project/a6507e17-3860-47a8-9a6b-0286741713fa" target="_blank">Cirkit Designer</a>.</p>
+
 # ESP32 Single-Plant Automatic Watering System
 
 A production-quality, battery-powered automatic plant watering system using ESP32 with deep sleep for ultra-low power consumption.
@@ -21,7 +28,7 @@ A production-quality, battery-powered automatic plant watering system using ESP3
 | 1 | Capacitive soil moisture sensor | v1.2 or v2.0 |
 | 1 | Mini water pump 3-6V | DC submersible pump |
 | 1 | N-channel MOSFET | IRLZ44N or 2N7000 |
-| 1 | Li-ion/LiPo battery | 18650 (3.7V) or similar |
+| 1 | 3xAA Alkaline battery | 4.5V nominal |
 | 2 | 100kΩ resistors | Voltage divider |
 | 2 | 220Ω resistors | LED current limiting |
 | 1 | Green LED | 3mm or 5mm |
@@ -33,28 +40,6 @@ A production-quality, battery-powered automatic plant watering system using ESP3
 ---
 
 ## 🔌 WIRING GUIDE - Step by Step
-
-### ESP32-C3 Supermini Pinout Reference
-```
-     USB-C
-    ┌─────┐
-5V  │ ● ● │ GND
-G21 │ ● ● │ 3V3
-G20 │ ● ● │ G10
-G10 │ ● ● │ G9   (avoid - strapping pin)
-G8  │ ● ● │ G8   (avoid - strapping pin)
-G7  │ ● ● │ G7
-G6  │ ● ● │ G6
-G5  │ ● ● │ G5
-G4  │ ● ● │ G4   ← Soil sensor
-G3  │ ● ● │ G3   ← Battery voltage
-G2  │ ● ● │ G2   (avoid - strapping pin)
-G1  │ ● ● │ G1
-G0  │ ● ● │ G0
-    └─────┘
-```
-
----
 
 ### 1️⃣ SOIL MOISTURE SENSOR → ESP32-C3
 
@@ -70,7 +55,6 @@ G0  │ ● ● │ G0
 ### 2️⃣ BATTERY VOLTAGE MONITORING → ESP32-C3
 
 **Build voltage divider with 2× 100kΩ resistors:**
-
 ```
 Battery (+) ────┬──────────────> Battery connector
                 │
@@ -161,24 +145,10 @@ ESP32 GPIO7 ──[220Ω]──> LED (+) ──> GND
 
 **No resistors needed!** ESP32 has internal pull-ups.
 
-**Main Button:**
-- One leg → ESP32 **GPIO10**
-- Other leg → ESP32 **GND**
-
-**Wet Calibration Button:**
-- One leg → ESP32 **GPIO20**
-- Other leg → ESP32 **GND**
-
-**Dry Calibration Button:**
-- One leg → ESP32 **GPIO21**
-- Other leg → ESP32 **GND**
-
-```
-Button layout:
-[GPIO0] ──┤ ├── GND    (Main)
-[GPIO1] ──┤ ├── GND    (Wet Cal)
-[GPIO2] ──┤ ├── GND    (Dry Cal)
-```
+**Button Pin Mapping:**
+- Main Button: GPIO0 ↔ GND
+- Wet Calibration Button: GPIO1 ↔ GND
+- Dry Calibration Button: GPIO2 ↔ GND
 
 ---
 
@@ -202,9 +172,9 @@ Button layout:
 | **Green LED (−)** | ESP32 **GND** | Short leg |
 | **ESP32 GPIO7** | Red LED (+) | Via 220Ω resistor |
 | **Red LED (−)** | ESP32 **GND** | Short leg |
-| **Main Button** | GPIO10 ↔ GND | Press = connect |
-| **Wet Cal Button** | GPIO20 ↔ GND | Press = connect |
-| **Dry Cal Button** | GPIO21 ↔ GND | Press = connect |
+| **Main Button** | GPIO0 ↔ GND | Press = connect |
+| **Wet Cal Button** | GPIO1 ↔ GND | Press = connect |
+| **Dry Cal Button** | GPIO2 ↔ GND | Press = connect |
 
 ---
 
@@ -288,9 +258,9 @@ Edit `src/config.h` to customize:
 #define PUMP_RUN_DURATION_MS        3000    // Pump time per watering
 #define MIN_WATERING_INTERVAL_SEC   (6 * 60 * 60)   // 6 hours minimum
 
-// Battery thresholds (adjust for your battery)
-#define BATTERY_WARNING_MV      3500    // Show warning LED
-#define BATTERY_CRITICAL_MV     3300    // Disable watering
+// Battery thresholds (for 3xAA Alkaline)
+#define BATTERY_WARNING_MV      3600    // Show warning LED
+#define BATTERY_CRITICAL_MV     3000    // Disable watering
 ```
 
 ## Building
@@ -298,14 +268,9 @@ Edit `src/config.h` to customize:
 ### PlatformIO (Recommended)
 
 ```bash
-# Build
-pio run
-
-# Upload
-pio run --target upload
-
-# Monitor serial output (debug mode)
-pio device monitor
+pio run           # Build
+pio run --target upload   # Upload
+pio device monitor        # Monitor serial output (debug mode)
 ```
 
 ### Arduino IDE
