@@ -130,7 +130,14 @@ void init_hardware() {
     gpio_deep_sleep_hold_dis();
     
     // Initialize storage first (needed by other modules)
-    storage_init();
+    if (!storage_init()) {
+        // NVS failure — flash error LED and continue with defaults
+        led_red_blink(5, 100);
+    }
+    
+    // Configure ADC once (shared by sensor + battery)
+    analogReadResolution(ADC_RESOLUTION);
+    analogSetAttenuation(ADC_ATTENUATION);
     
     // Initialize sensors and actuators
     sensor_init();
@@ -210,10 +217,8 @@ void handle_timer_wake() {
  * Handle button press wake.
  * Delegates to button module for full interaction handling.
  */
-void handle_button_wake(uint64_t wake_mask) {
-    // Use the buttons module for full interaction handling
-    // This handles all button combinations, long presses, and actions
-    buttons_handle_interaction_with_wake(wake_mask);
+void handle_button_wake() {
+    buttons_handle_interaction();
 }
 
 // =============================================================================
@@ -226,7 +231,7 @@ void handle_button_wake(uint64_t wake_mask) {
  */
 void handle_first_boot() {
     #ifdef DEBUG_SERIAL
-    // Serial.println("First boot - running initialization...");
+    Serial.println("First boot - running initialization...");
     #endif
     
     // Visual indication of power on
@@ -246,16 +251,16 @@ void handle_first_boot() {
     if (!sensor_reading_valid(raw)) {
         led_show_error();
         #ifdef DEBUG_SERIAL
-        // Serial.println("WARNING: Sensor reading invalid!");
+        Serial.println("WARNING: Sensor reading invalid!");
         #endif
     }
     
-    // Show current humidity
-    uint8_t humidity = sensor_read_humidity_percent();
+    // Show current humidity (convert from raw to avoid a second ADC read)
+    uint8_t humidity = sensor_raw_to_humidity_percent(raw);
     #ifdef DEBUG_SERIAL
-    // Serial.print("Current humidity: ");
-    // Serial.print(humidity);
-    // Serial.println("%");
+    Serial.print("Current humidity: ");
+    Serial.print(humidity);
+    Serial.println("%");
     #endif
     
     // Brief delay to show status
@@ -279,11 +284,11 @@ void setup() {
     
     // Initialize serial for debugging (optional, uses power)
     #ifdef DEBUG_SERIAL
-    // Serial.begin(115200);
+    Serial.begin(115200);
     delay(100);
-    // Serial.println("\n========================================");
-    // Serial.println("ESP32 Plant Watering System - Wake");
-    // Serial.println("========================================");
+    Serial.println("\n========================================");
+    Serial.println("ESP32 Plant Watering System - Wake");
+    Serial.println("========================================");
     #endif
     
     // Initialize all hardware
@@ -291,24 +296,20 @@ void setup() {
     
     // Determine why we woke up
     WakeReason reason = determine_wake_reason();
-    uint64_t wake_mask = 0;
-    if (reason == WAKE_BUTTON) {
-        wake_mask = esp_sleep_get_gpio_wakeup_status();
-    }
     
     #ifdef DEBUG_SERIAL
-    // Serial.print("Wake reason: ");
+    Serial.print("Wake reason: ");
     switch(reason) {
-        case WAKE_TIMER:    /* Serial.println("TIMER"); */ break;
-        case WAKE_BUTTON:   /* Serial.println("BUTTON"); */ break;
-        case WAKE_POWER_ON: /* Serial.println("POWER_ON"); */ break;
-        default:            /* Serial.println("UNKNOWN"); */ break;
+        case WAKE_TIMER:    Serial.println("TIMER");    break;
+        case WAKE_BUTTON:   Serial.println("BUTTON");   break;
+        case WAKE_POWER_ON: Serial.println("POWER_ON"); break;
+        default:            Serial.println("UNKNOWN");  break;
     }
-    // Serial.print("Boot count: ");
-    // Serial.println(storage_get_boot_count());
-    // Serial.print("Persistent time: ");
-    // Serial.print(storage_get_persistent_time() / 3600);
-    // Serial.println(" hours");
+    Serial.print("Boot count: ");
+    Serial.println(storage_get_boot_count());
+    Serial.print("Persistent time: ");
+    Serial.print(storage_get_persistent_time() / 3600);
+    Serial.println(" hours");
     #endif
     
     // Handle based on wake reason
@@ -320,7 +321,7 @@ void setup() {
         case WAKE_BUTTON:
             // Button wake indicator
             led_green_blink(2, 80);
-            handle_button_wake(wake_mask);
+            handle_button_wake();
             break;
             
         case WAKE_POWER_ON:
@@ -331,7 +332,7 @@ void setup() {
         case WAKE_UNKNOWN:
             // Unexpected - just go back to sleep
             #ifdef DEBUG_SERIAL
-            // Serial.println("Unknown wake reason, returning to sleep");
+            Serial.println("Unknown wake reason, returning to sleep");
             #endif
             break;
     }
@@ -339,18 +340,19 @@ void setup() {
     // Calculate how long we were awake
     uint32_t awake_duration_sec = (millis() - wake_start_ms) / 1000;
     
-    // Update persistent time tracking (only on timer wake for accuracy)
+    // Update persistent time tracking
+    uint32_t sleep_sec = (reason == WAKE_TIMER) ? MEASUREMENT_INTERVAL_SEC : 0;
     if (reason == WAKE_TIMER || reason == WAKE_POWER_ON) {
-        storage_increment_boot_count(awake_duration_sec);
+        storage_increment_boot_count(sleep_sec, awake_duration_sec);
     }
     
     // All done, go to deep sleep
     #ifdef DEBUG_SERIAL
-    // Serial.print("Awake for ");
-    // Serial.print(millis() - wake_start_ms);
-    // Serial.println(" ms");
-    // Serial.println("Entering deep sleep...");
-    // Serial.flush();
+    Serial.print("Awake for ");
+    Serial.print(millis() - wake_start_ms);
+    Serial.println(" ms");
+    Serial.println("Entering deep sleep...");
+    Serial.flush();
     #endif
     
     #if DEBUG_NO_SLEEP
@@ -363,12 +365,11 @@ void setup() {
 
 void loop() {
     #if DEBUG_NO_SLEEP
-    // Poll buttons while awake for troubleshooting
+    // Poll buttons while awake for troubleshooting.
+    // buttons_handle_interaction() blocks for up to MODE_TIMEOUT_MS.
     buttons_handle_interaction();
-    delay(50);
     #else
     // This should never execute because we enter deep sleep in setup()
-    // If we somehow get here, go to sleep
     enter_deep_sleep();
     #endif
 }
