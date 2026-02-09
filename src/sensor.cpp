@@ -74,23 +74,49 @@ uint8_t sensor_read_humidity_percent() {
 // =============================================================================
 
 uint16_t sensor_calibrate_dry() {
-    // Read current raw value
-    uint16_t raw = sensor_read_raw();
-    
-    // Store as dry reference
-    storage_set_sensor_dry(raw);
-    
-    return raw;
+    // Average sensor value over adjustable calibration time
+    unsigned long calibrating_time = SENSOR_CALIBRATION_TIME_MS;
+    unsigned long start_time = millis();
+    uint32_t sum = 0;
+    uint32_t count = 0;
+    #ifdef DEBUG_SERIAL
+    Serial.println("Dry calibration started. Keep sensor dry for " + String(calibrating_time / 1000) + " seconds.");
+    #endif
+    while (millis() - start_time < calibrating_time) {
+        sum += sensor_read_raw();
+        count++;
+        delay(10);
+    }
+    uint16_t avg_val = (count > 0) ? (uint16_t)(sum / count) : 0;
+    storage_set_sensor_dry(avg_val);
+    #ifdef DEBUG_SERIAL
+    Serial.print("Dry calibration complete. Value: ");
+    Serial.println(avg_val);
+    #endif
+    return avg_val;
 }
 
 uint16_t sensor_calibrate_wet() {
-    // Read current raw value
-    uint16_t raw = sensor_read_raw();
-    
-    // Store as wet reference
-    storage_set_sensor_wet(raw);
-    
-    return raw;
+    // Average sensor value over adjustable calibration time
+    unsigned long calibrating_time = SENSOR_CALIBRATION_TIME_MS;
+    unsigned long start_time = millis();
+    uint32_t sum = 0;
+    uint32_t count = 0;
+    #ifdef DEBUG_SERIAL
+    Serial.println("Wet calibration started. Keep sensor wet for " + String(calibrating_time / 1000) + " seconds.");
+    #endif
+    while (millis() - start_time < calibrating_time) {
+        sum += sensor_read_raw();
+        count++;
+        delay(10);
+    }
+    uint16_t avg_val = (count > 0) ? (uint16_t)(sum / count) : 0;
+    storage_set_sensor_wet(avg_val);
+    #ifdef DEBUG_SERIAL
+    Serial.print("Wet calibration complete. Value: ");
+    Serial.println(avg_val);
+    #endif
+    return avg_val;
 }
 
 // =============================================================================
