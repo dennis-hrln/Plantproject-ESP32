@@ -129,6 +129,27 @@ This describes what the LEDs will do when you press the Main, Wet and Dry button
 
 Refer to the `hardware_test` patterns above when using the standalone test sketch; both sets of patterns are useful during debugging and setup.
 
+### Main Firmware LED Pattern Table
+
+Summary of LED patterns used by the main firmware (functions in `src/leds.cpp`).
+
+| Pattern | Meaning | Function / Notes |
+|--------|---------|------------------|
+| Brief both-LED flash (~100 ms) | Start indicator for numeric display | `led_display_number`: start marker |
+| Long green flash (~LED_FLASH_LONG_MS) | Tens digit (each = 10%) | `led_display_number` |
+| Short green flash (~LED_FLASH_SHORT_MS) | Ones digit (each = 1%) | `led_display_number` |
+| Very brief green flash (~80 ms) | Zero ones indicator | `led_display_number` special case |
+| Two very brief green flashes (50 ms) | End indicator for numeric display | `led_display_number` end marker |
+| 2 solid green blinks (300 ms) | Success | `led_show_success()` |
+| 3 rapid red blinks (100 ms) | Error | `led_show_error()` |
+| 2 slow red blinks (300 ms) | Battery warning | `led_show_battery_warning()` |
+| 5 rapid red blinks (100 ms) | Battery critical | `led_show_battery_critical()` |
+| Alternating green / red (200 ms each) | Calibration confirm (single sequence) | `led_show_calibration_confirm()` |
+| Both LEDs blink simultaneously (150 ms ON, 300 ms OFF) | Calibration mode active (heartbeat until action/timeout) | (new behavior in `buttons.cpp`) |
+| N green blinks (500 ms) | Battery level indicator (1..5) | `test_battery()` mapping |
+| Single long red blink (1000 ms) | Pump/power error indicator | used for pump failure in runtime |
+
+
 **Hardware Test LED Patterns**
 
 The hardware test firmware (`src/hardware_test.cpp`) uses additional patterns for diagnostics. These are visible when you upload the `hardware_test` environment and run the button-driven tests.

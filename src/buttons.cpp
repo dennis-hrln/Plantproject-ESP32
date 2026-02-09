@@ -231,6 +231,45 @@ static void adjust_optimal_humidity(int8_t direction) {
 }
 
 // =============================================================================
+// CALIBRATION HEARTBEAT (non-blocking)
+// =============================================================================
+
+static bool     s_calib_heartbeat_on = false;
+static uint32_t s_calib_heartbeat_ms = 0;
+
+static void calibration_heartbeat_reset() {
+    s_calib_heartbeat_on = false;
+    s_calib_heartbeat_ms = 0;
+    leds_all_off();
+}
+
+static void calibration_heartbeat_tick() {
+    const uint32_t now = millis();
+    const uint16_t on_ms  = 150;
+    const uint16_t off_ms = 300;
+
+    if (s_calib_heartbeat_ms == 0) {
+        s_calib_heartbeat_ms = now;
+        s_calib_heartbeat_on = true;
+        led_green_on();
+        led_red_on();
+        return;
+    }
+
+    const uint16_t interval = s_calib_heartbeat_on ? on_ms : off_ms;
+    if ((now - s_calib_heartbeat_ms) >= interval) {
+        s_calib_heartbeat_ms = now;
+        s_calib_heartbeat_on = !s_calib_heartbeat_on;
+        if (s_calib_heartbeat_on) {
+            led_green_on();
+            led_red_on();
+        } else {
+            leds_all_off();
+        }
+    }
+}
+
+// =============================================================================
 // MAIN INTERACTION LOOP
 // =============================================================================
 
@@ -259,6 +298,12 @@ void buttons_handle_interaction(void) {
         buttons_reset_results();
 
         if (new_mode != mode) {
+            if (mode == MODE_CALIBRATION) {
+                calibration_heartbeat_reset();
+            }
+            if (new_mode == MODE_CALIBRATION) {
+                calibration_heartbeat_reset();
+            }
             mode                 = new_mode;
             last_mode_change_ms  = millis();
             deadline_ms          = millis();   // extend deadline on mode change
@@ -291,10 +336,9 @@ void buttons_handle_interaction(void) {
                 return;
 
             case MODE_CALIBRATION:
-                if (!calibration_prompted) {
-                    led_show_calibration_confirm();
-                    calibration_prompted = true;
-                }
+                // Non-blocking heartbeat while waiting for calibration action.
+                calibration_heartbeat_tick();
+                calibration_prompted = true;
                 break;
 
             case MODE_CALIBRATE_DRY:
