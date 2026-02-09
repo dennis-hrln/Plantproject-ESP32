@@ -77,10 +77,12 @@ void led_red_blink(uint8_t count, uint16_t duration_ms);
 void led_display_number(uint8_t value);
 
 /**
- * Display current soil humidity using LED flash pattern.
- * Reads sensor and displays percentage.
+ * Display a humidity value using LED flash pattern.
+ * Caller reads the sensor and passes the value.
+ *
+ * @param humidity Humidity percentage (0-100)
  */
-void led_display_humidity();
+void led_display_humidity(uint8_t humidity);
 
 // =============================================================================
 // STATUS INDICATORS

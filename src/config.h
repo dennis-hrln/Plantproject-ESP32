@@ -58,10 +58,11 @@
 // Example: 100k / (100k + 100k) = 0.5 → multiply ADC voltage by 2
 #define BATTERY_DIVIDER_RATIO   2.0
 
-#define BATTERY_FULL_MV         4600    // Fully charged 
-#define BATTERY_WARNING_MV      3600    // Show warning LED
-#define BATTERY_CRITICAL_MV     3200    // Disable watering
-#define BATTERY_EMPTY_MV        3000    // Absolute minimum
+// 3× Alkaline AA: fresh ~4.8V (3×1.6V), nominal 4.5V (3×1.5V), dead ~2.7V (3×0.9V)
+#define BATTERY_FULL_MV         4500    // Nominal fresh (3 × 1.5V)
+#define BATTERY_WARNING_MV      3600    // Getting low  (3 × 1.2V)
+#define BATTERY_CRITICAL_MV     3000    // Disable watering (3 × 1.0V)
+#define BATTERY_EMPTY_MV        2700    // Dead (3 × 0.9V)
 
 // =============================================================================
 // SOIL SENSOR DEFAULTS (raw ADC values, will be overwritten by calibration)
@@ -102,8 +103,8 @@
 
 #define BTN_DEBOUNCE_MS             50      // Debounce time
 #define BTN_LONG_PRESS_MS           2000    // Long press threshold
-#define BTN_COMBO_WINDOW_MS         500     // Window for multi-button combo
 #define MODE_TIMEOUT_MS             5000    // Mode timeout before returning to general
+#define HUMIDITY_STEP               5       // Optimal humidity adjustment step (%)
 
 // =============================================================================
 // LED TIMING (in milliseconds)

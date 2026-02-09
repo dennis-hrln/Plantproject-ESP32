@@ -1,8 +1,10 @@
 /**
  * buttons.h - Button handling interface
- * 
- * Handles button debouncing, press detection, and special sequences.
- * Supports short press, long press, and multi-button combinations.
+ *
+ * Three-layer design:
+ *   1. Debounce + raw read
+ *   2. Press detection (short / long / none per button)
+ *   3. Mode-based action dispatch
  */
 
 #ifndef BUTTONS_H
@@ -11,47 +13,51 @@
 #include <Arduino.h>
 
 // =============================================================================
-// BUTTON IDENTIFIERS
+// CONSTANTS
 // =============================================================================
 
+#define BTN_COUNT 3   // Main, Cal-Wet, Cal-Dry
+
+// =============================================================================
+// TYPES
+// =============================================================================
+
+/** Per-button press result (produced by the detection layer). */
 typedef enum {
-    BTN_NONE,           // No button pressed
-    BTN_MAIN,           // Main interaction button
-    BTN_CAL_WET,        // Wet calibration button
-    BTN_CAL_DRY         // Dry calibration button
-} ButtonId;
+    PRESS_NONE,
+    PRESS_SHORT,
+    PRESS_LONG
+} ButtonPress;
+
+/** Interaction modes (state machine for the action layer). */
+typedef enum {
+    MODE_GENERAL,
+    MODE_PLANT_WATERING,
+    MODE_DISPLAY_HUMIDITY,
+    MODE_DISPLAY_OPTIMAL_HUMIDITY,
+    MODE_CALIBRATION,
+    MODE_CALIBRATE_DRY,
+    MODE_CALIBRATE_WET,
+    MODE_SET_OPTIMAL_HUMIDITY,
+    MODE_LOWER_OPT_HUMIDITY,
+    MODE_ADD_OPT_HUMIDITY
+} ButtonMode;
 
 // =============================================================================
-// INITIALIZATION
+// API
 // =============================================================================
 
 /**
  * Initialize button GPIO pins with internal pull-ups.
  */
-void buttons_init();
-
-// =============================================================================
-// HIGH-LEVEL ACTIONS
-// =============================================================================
+void buttons_init(void);
 
 /**
- * Handle button wake and determine user intent.
- * Call this after waking from button interrupt.
- * 
- * Detects:
- * - Short press on main → display humidity
- * - Long press on main → manual watering
- * - Long press on cal button (with combo) → calibration
- * - Combination sequence → settings adjustment
+ * Handle button interaction after wake.
+ * Runs a polling loop that detects presses, resolves mode,
+ * and dispatches actions. Returns when an action fires or
+ * the mode timeout is reached.
  */
-void buttons_handle_interaction();
-
-/**
- * Handle button wake with GPIO wake mask for single-press detection.
- * Use the wake mask from esp_sleep_get_gpio_wakeup_status().
- * 
- * @param wake_mask GPIO wake bitmask (0 if unknown)
- */
-void buttons_handle_interaction_with_wake(uint64_t wake_mask);
+void buttons_handle_interaction(void);
 
 #endif // BUTTONS_H
