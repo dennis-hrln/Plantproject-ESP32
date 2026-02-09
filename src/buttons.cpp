@@ -91,11 +91,16 @@ static bool buttons_poll(ButtonPress out[BTN_COUNT]) {
                 s_btn[i].last_change_ms = now;
             } else if (!s_btn[i].long_reported &&
                        (now - s_btn[i].press_start_ms) >= BTN_LONG_PRESS_MS) {
-                s_btn[i].result        = PRESS_LONG;         // latch long
+                // mark that we've passed the long-press threshold; do not
+                // set the final result yet — wait for release so visual
+                // feedback only happens after the interaction completes.
                 s_btn[i].long_reported = true;
             }
         } else if (s_btn[i].is_down) {                       // just released
-            if (!s_btn[i].long_reported) {
+            // On release decide whether it was a short or long press.
+            if (s_btn[i].long_reported) {
+                s_btn[i].result = PRESS_LONG;
+            } else {
                 s_btn[i].result = PRESS_SHORT;
             }
             s_btn[i].is_down        = false;

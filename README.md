@@ -100,13 +100,32 @@ This describes what the LEDs will do when you press the Main, Wet and Dry button
 - All 3 buttons together: Run all tests sequence — rapid alternating green/red 5× then runs all tests; final: 3 both-LED blinks.
 
 ### Main Firmware (normal operation / calibration)
+- Main (short press): Display humidity using the two‑digit LED pattern (`led_display_number`):
+   - Start indicator: both LEDs briefly ON (~100 ms).
+   - Pause (~LED_DIGIT_PAUSE_MS = 1000 ms).
+   - TENS digit: long green flashes (each ~LED_FLASH_LONG_MS = 600 ms, 300 ms pause); skipped if 0.
+   - Pause (~LED_DIGIT_PAUSE_MS = 1000 ms).
+   - ONES digit: short green flashes (each ~LED_FLASH_SHORT_MS = 200 ms, 300 ms pause); if ones == 0 a single very brief flash (~80 ms) indicates zero.
+   - End indicator: two very brief green flashes (50 ms each, short gap).
+   - Special: 100% is shown as three long green flashes.
 
-- Main (short press): Display humidity — long green flashes for tens, short green flashes for ones (e.g., 4 long + 7 short = 47%).
-- Main (long press): Manual watering — green blink(s) then watering sequence (pump runs for configured duration if safety checks pass).
-- Enter calibration: Hold ALL 3 buttons for 2+ seconds → both LEDs pulse then calibration mode entered.
+- Main (long press): Manual watering (`perform_manual_watering`): two quick green blinks (2 × 100 ms) then the watering attempt. Result visual:
+   - `WATER_OK`: `led_show_success()` → 2 solid green blinks (300 ms each).
+   - `WATER_TOO_SOON`: 3 red blinks (200 ms on, 300 ms off).
+   - `WATER_BATTERY_LOW`: battery critical pattern (rapid red blinks).
+   - other errors: `led_show_error()` → 3 rapid red blinks (100 ms on).
+
+- Enter calibration: Hold ALL 3 buttons for 2+ seconds → `led_show_calibration_confirm()` plays an alternating green/red/green sequence (200 ms each) and calibration mode is entered.
+
 - In calibration mode:
-   - Long-press WET button → wet calibration progress (green), then success pattern.
-   - Long-press DRY button → dry calibration progress (red), then success pattern.
+   - Long-press WET: `perform_calibrate_wet()` lights green steady while calibrating, then `led_show_success()` on success (2 solid green blinks).
+   - Long-press DRY: `perform_calibrate_dry()` lights red steady while calibrating, then `led_show_success()` on success.
+
+- Adjust optimal humidity: in adjust mode, pressing WET increases and shows a single green blink (`led_green_blink(1,150)`), pressing DRY decreases and shows a single red blink (`led_red_blink(1,150)`).
+
+- Battery/status indicators used elsewhere:
+   - `led_show_battery_warning()` → 2 slow red blinks (300 ms on).
+   - `led_show_battery_critical()` → 5 rapid red blinks (100 ms on).
 
 Refer to the `hardware_test` patterns above when using the standalone test sketch; both sets of patterns are useful during debugging and setup.
 
