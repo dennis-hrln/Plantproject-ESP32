@@ -6,39 +6,38 @@
  * 
  * HOW TO USE:
  *   Upload, then use buttons to run tests:
- * 
- *   MAIN button (GPIO 10) short press:
- *     -> LED test: green on 1s, red on 1s, both blink 3x
- *     -> Result: you see them light up = wiring OK
- * 
- *   WET button (GPIO 20) short press:
+ *
+ *   MAIN button (GPIO0) short press:
+ *     -> LED test: green on 1s, red on 1s, alternating blinks
+ *
+ *   WET button (GPIO1) short press:
  *     -> Soil sensor test: reads sensor, shows humidity as green blinks
  *        0 blinks = error (red flashes 5x fast)
  *        1-10 blinks = humidity in 10% steps (3 blinks = 30%)
- * 
- *   DRY button (GPIO 21) short press:
+ *
+ *   DRY button (GPIO2) short press:
  *     -> Pump test: red LED on, pump runs 1 second, red LED off
  *        If pump doesn't run, check transistor wiring
- * 
+ *
  *   MAIN button LONG press (>2s):
  *     -> Battery test: reads voltage, shows level as green blinks
  *        1 blink = very low, 5 blinks = full
  *        Red flash after = voltage below warning threshold
- * 
+ *
  *   ALL 3 buttons pressed together:
  *     -> Run all tests in sequence (LED, sensor, battery, pump)
- * 
+ *
  *   STARTUP: Both LEDs flash twice = board is ready
  * 
  * WIRING UNDER TEST:
  *   GPIO 4  - Soil moisture sensor (analog input)
  *   GPIO 3  - Battery voltage divider (analog input)
- *   GPIO 5  - Pump transistor base via 10k (digital output)
- *   GPIO 6  - Green LED via 330 Ohm (digital output)
- *   GPIO 7  - Red LED via 330 Ohm (digital output)
- *   GPIO 10 - Main button (input, pull-up, active LOW)
- *   GPIO 20 - Wet cal button (input, pull-up, active LOW)
- *   GPIO 21 - Dry cal button (input, pull-up, active LOW)
+ *   GPIO 5  - Pump transistor gate (digital output)
+ *   GPIO 6  - Green LED via resistor (digital output)
+ *   GPIO 7  - Red LED via resistor (digital output)
+ *   GPIO 0  - Main button (input, pull-up, active LOW)
+ *   GPIO 1  - Wet test button (input, pull-up, active LOW)
+ *   GPIO 2  - Dry test button (input, pull-up, active LOW)
  */
 
 #include <Arduino.h>
@@ -331,27 +330,55 @@ void setup() {
 // Main loop - simple button LED test
 // ---------------------------------------------------------------------------
 void loop() {
+    // Poll buttons
     bool main_pressed = (digitalRead(PIN_BTN_MAIN) == LOW);
     bool wet_pressed  = (digitalRead(PIN_BTN_CAL_WET) == LOW);
     bool dry_pressed  = (digitalRead(PIN_BTN_CAL_DRY) == LOW);
 
+    // ALL 3 pressed -> run all tests
+    if (main_pressed && wet_pressed && dry_pressed) {
+        delay(DEBOUNCE_MS);
+        if ((digitalRead(PIN_BTN_MAIN) == LOW) && (digitalRead(PIN_BTN_CAL_WET) == LOW) && (digitalRead(PIN_BTN_CAL_DRY) == LOW)) {
+            // wait for release
+            while ((digitalRead(PIN_BTN_MAIN) == LOW) || (digitalRead(PIN_BTN_CAL_WET) == LOW) || (digitalRead(PIN_BTN_CAL_DRY) == LOW)) delay(10);
+            run_all_tests();
+        }
+        return;
+    }
+
+    // MAIN button: short = LED test, long = battery test
     if (main_pressed) {
         delay(DEBOUNCE_MS);
         if (digitalRead(PIN_BTN_MAIN) == LOW) {
+            unsigned long start = millis();
             while (digitalRead(PIN_BTN_MAIN) == LOW) delay(10);
-            blink_both(4, 200, 1800);
+            unsigned long duration = millis() - start;
+            if (duration >= LONG_PRESS_MS) {
+                test_battery();
+            } else {
+                test_leds();
+            }
+            return;
         }
-    } else if (dry_pressed) {
-        delay(DEBOUNCE_MS);
-        if (digitalRead(PIN_BTN_CAL_DRY) == LOW) {
-            while (digitalRead(PIN_BTN_CAL_DRY) == LOW) delay(10);
-            blink_green(4, 200, 1800);
-        }
-    } else if (wet_pressed) {
+    }
+
+    // WET button: soil sensor test
+    if (wet_pressed) {
         delay(DEBOUNCE_MS);
         if (digitalRead(PIN_BTN_CAL_WET) == LOW) {
             while (digitalRead(PIN_BTN_CAL_WET) == LOW) delay(10);
-            blink_red(4, 200, 1800);
+            test_soil_sensor();
+            return;
+        }
+    }
+
+    // DRY button: pump test
+    if (dry_pressed) {
+        delay(DEBOUNCE_MS);
+        if (digitalRead(PIN_BTN_CAL_DRY) == LOW) {
+            while (digitalRead(PIN_BTN_CAL_DRY) == LOW) delay(10);
+            test_pump();
+            return;
         }
     }
 

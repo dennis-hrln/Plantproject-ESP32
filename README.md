@@ -219,6 +219,24 @@ ESP32 GPIO7 ──[220Ω]──> LED (+) ──> GND
 | 5 rapid red blinks | Battery critical |
 | Green-Red-Green sequence | Calibration mode entered |
 
+**Hardware Test LED Patterns**
+
+The hardware test firmware (`src/hardware_test.cpp`) uses additional patterns for diagnostics. These are visible when you upload the `hardware_test` environment and run the button-driven tests.
+
+| Pattern | Meaning |
+|---------|---------|
+| Startup: 2 both-LED flashes (200ms) | Test sketch ready/boot completed |
+| Start marker: 1 both-LED flash (150ms) | Beginning of an individual test |
+| 3 fast green blinks (100ms) | Test success / pass |
+| 5 fast red blinks (100ms) | Test error / sensor disconnected |
+| LED test: green on 1s → red on 1s → both on 1s → alternating 4× (250ms) | Visual LED wiring / polarity check |
+| Soil sensor test: short red flash → N× green blinks (each ~400ms) → both-LED end marker | Shows humidity in 10% steps (1–10 blinks). If reading invalid (0 or near-max) you get error pattern |
+| Pump test: 3 red blinks (500ms) → red LED on while pump runs 1s → 2 green blinks | Pump/transistor check and confirmation |
+| Battery test: N green blinks (500ms) then optional 3 red blinks if low | Battery level 1–5 (low→full); red blinks indicate below warning threshold |
+| Run-all signal: rapid alternating green/red 5× | Running full test sequence (LED, sensor, battery, pump) |
+| Final-all: 3 both-LED blinks (300ms) | All tests completed |
+
+
 ## Calibration Procedure
 
 ### Initial Setup
