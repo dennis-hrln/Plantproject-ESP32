@@ -57,7 +57,11 @@ void buttons_init(void);
  * Runs a polling loop that detects presses, resolves mode,
  * and dispatches actions. Returns when an action fires or
  * the mode timeout is reached.
+ *
+ * @param from_button_wake  true when called right after a
+ *        deep-sleep GPIO wake so that a very fast tap that
+ *        was released during boot is treated as a short press.
  */
-void buttons_handle_interaction(void);
+void buttons_handle_interaction(bool from_button_wake = false);
 
 #endif // BUTTONS_H
