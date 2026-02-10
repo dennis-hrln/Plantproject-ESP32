@@ -218,7 +218,7 @@ void handle_timer_wake() {
  * Delegates to button module for full interaction handling.
  */
 void handle_button_wake() {
-    buttons_handle_interaction();
+    buttons_handle_interaction(true);
 }
 
 // =============================================================================
@@ -319,8 +319,7 @@ void setup() {
             break;
             
         case WAKE_BUTTON:
-            // Button wake indicator
-            led_green_blink(2, 80);
+            // Brief wake indicator is handled inside buttons_handle_interaction.
             handle_button_wake();
             break;
             
