@@ -10,12 +10,12 @@
  *   MAIN button (GPIO0) short press:
  *     -> LED test: green on 1s, red on 1s, alternating blinks
  *
- *   WET button (GPIO1) short press:
+ *   WET button (GPIO2) short press:
  *     -> Soil sensor test: reads sensor, shows humidity as green blinks
  *        0 blinks = error (red flashes 5x fast)
  *        1-10 blinks = humidity in 10% steps (3 blinks = 30%)
  *
- *   DRY button (GPIO2) short press:
+ *   DRY button (GPIO1) short press:
  *     -> Pump test: red LED on, pump runs 1 second, red LED off
  *        If pump doesn't run, check transistor wiring
  *
@@ -36,8 +36,8 @@
  *   GPIO 6  - Green LED via resistor (digital output)
  *   GPIO 7  - Red LED via resistor (digital output)
  *   GPIO 0  - Main button (input, pull-up, active LOW)
- *   GPIO 1  - Wet test button (input, pull-up, active LOW)
- *   GPIO 2  - Dry test button (input, pull-up, active LOW)
+ *   GPIO 2  - Wet test button (input, pull-up, active LOW)
+ *   GPIO 1  - Dry test button (input, pull-up, active LOW)
  */
 
 #include <Arduino.h>
