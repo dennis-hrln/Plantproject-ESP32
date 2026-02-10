@@ -157,9 +157,7 @@ static ButtonMode resolve_mode(ButtonMode mode,
             mode = MODE_CALIBRATE_DRY;   // Dry button → dry calibration
 
     } else if (mode == MODE_SET_OPTIMAL_HUMIDITY) {
-        if      (presses_match(presses, PRESS_SHORT, PRESS_NONE,  PRESS_NONE))
-            mode = MODE_GENERAL;                     // Main short → exit
-        else if (presses_match(presses, PRESS_NONE, PRESS_SHORT, PRESS_NONE))
+        if (presses_match(presses, PRESS_NONE, PRESS_SHORT, PRESS_NONE))
             mode = MODE_ADD_OPT_HUMIDITY;    // Wet button → increase (wetter)
         else if (presses_match(presses, PRESS_NONE, PRESS_NONE,  PRESS_SHORT))
             mode = MODE_LOWER_OPT_HUMIDITY;  // Dry button → decrease (drier)
