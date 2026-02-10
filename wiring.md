@@ -54,8 +54,8 @@ This document contains the full step-by-step wiring instructions and a consolida
 5) Buttons (active LOW, use internal pull-ups)
 
 - Main button → GPIO0 ↔ GND
-- Wet calibration → GPIO1 ↔ GND
-- Dry calibration → GPIO2 ↔ GND
+- Wet calibration → GPIO2 ↔ GND
+- Dry calibration → GPIO1 ↔ GND
 
 ---
 
@@ -76,8 +76,8 @@ This document contains the full step-by-step wiring instructions and a consolida
 | ESP32 GPIO6 | Green LED (+) via 220Ω |
 | ESP32 GPIO7 | Red LED (+) via 220Ω |
 | Main Button | GPIO0 ↔ GND |
-| Wet Cal Button | GPIO1 ↔ GND |
-| Dry Cal Button | GPIO2 ↔ GND |
+| Wet Cal Button | GPIO2 ↔ GND |
+| Dry Cal Button | GPIO1 ↔ GND |
 
 ---
 
