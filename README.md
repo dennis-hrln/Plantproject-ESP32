@@ -63,17 +63,18 @@ This keeps the README focused — open `wiring.md` for detailed wiring steps, di
 |--------|--------|--------------|
 | **Show Humidity** | Short press MAIN | Long flashes (tens) + short flashes (ones) |
 | **Manual Watering** | Long press MAIN (2s) | Green blinks, then watering |
+| **Show Target Humidity** | Short press DRY | Same two-digit pattern as humidity |
 
 ### Protected Operations (require button combinations)
 
 | Action | How To | LED Feedback |
 |--------|--------|--------------|
-| **Enter Calibration** | Hold ALL 3 buttons for 2+ seconds | Both LEDs pulse, then green blinks |
-| **Wet Calibration** | (In cal mode) Long press WET button | Green progress, then success |
-| **Dry Calibration** | (In cal mode) Long press DRY button | Red progress, then success |
-| **Adjust Humidity** | Hold MAIN + WET for 2s | Shows current value, then adjust mode |
-| **Increase Target** | (In adjust mode) Press WET | Green blink (+5%) |
-| **Decrease Target** | (In adjust mode) Press DRY | Red blink (-5%) |
+| **Enter Calibration** | Hold WET + DRY for 2+ seconds | Both LEDs heartbeat blink (150ms on, 300ms off) |
+| **Wet Calibration** | (In cal mode) Long press WET button | Red steady during calibrate, then success |
+| **Dry Calibration** | (In cal mode) Long press DRY button | Green steady during calibrate, then success |
+| **Set Target Humidity** | Hold ALL 3 buttons for 2+ seconds | Both LEDs stay on while in adjust mode |
+| **Increase Target** | (In adjust mode) Press WET | Brief green off (about 300ms), +5% |
+| **Decrease Target** | (In adjust mode) Press DRY | Brief red off (about 300ms), -5% |
 
 ### LED Patterns
 
@@ -84,7 +85,7 @@ This keeps the README focused — open `wiring.md` for detailed wiring steps, di
 | 3 rapid red blinks | Error |
 | 2 slow red blinks | Battery warning |
 | 5 rapid red blinks | Battery critical |
-| Green-Red-Green sequence | Calibration mode entered |
+| Both LEDs heartbeat blink (150ms on, 300ms off) | Calibration mode waiting for action |
 
 ## Button LED Behavior (quick reference)
 
@@ -109,19 +110,20 @@ This describes what the LEDs will do when you press the Main, Wet and Dry button
    - End indicator: two very brief green flashes (50 ms each, short gap).
    - Special: 100% is shown as three long green flashes.
 
+- Dry (short press): Display target humidity using the same two‑digit LED pattern (`led_display_number`).
+
 - Main (long press): Manual watering (`perform_manual_watering`): two quick green blinks (2 × 100 ms) then the watering attempt. Result visual:
    - `WATER_OK`: `led_show_success()` → 2 solid green blinks (300 ms each).
-   - `WATER_TOO_SOON`: 3 red blinks (200 ms on, 300 ms off).
    - `WATER_BATTERY_LOW`: battery critical pattern (rapid red blinks).
    - other errors: `led_show_error()` → 3 rapid red blinks (100 ms on).
 
-- Enter calibration: Hold ALL 3 buttons for 2+ seconds → `led_show_calibration_confirm()` plays an alternating green/red/green sequence (200 ms each) and calibration mode is entered.
+- Enter calibration: Hold WET + DRY for 2+ seconds → both LEDs heartbeat blink (150 ms on, 300 ms off) while waiting for calibration action.
 
 - In calibration mode:
-   - Long-press WET: `perform_calibrate_wet()` lights green steady while calibrating, then `led_show_success()` on success (2 solid green blinks).
-   - Long-press DRY: `perform_calibrate_dry()` lights red steady while calibrating, then `led_show_success()` on success.
+   - Long-press WET: `perform_calibrate_wet()` lights red steady while calibrating, then `led_show_success()` on success (2 solid green blinks).
+   - Long-press DRY: `perform_calibrate_dry()` lights green steady while calibrating, then `led_show_success()` on success.
 
-- Adjust optimal humidity: in adjust mode, pressing WET increases and shows a single green blink (`led_green_blink(1,150)`), pressing DRY decreases and shows a single red blink (`led_red_blink(1,150)`).
+- Set optimal humidity: hold ALL 3 buttons for 2+ seconds; both LEDs stay on while in adjust mode. Press WET to increase or DRY to decrease. The relevant LED briefly turns off (~300 ms) to confirm the step.
 
 - Battery/status indicators used elsewhere:
    - `led_show_battery_warning()` → 2 slow red blinks (300 ms on).
@@ -144,8 +146,7 @@ Summary of LED patterns used by the main firmware (functions in `src/leds.cpp`).
 | 3 rapid red blinks (100 ms) | Error | `led_show_error()` |
 | 2 slow red blinks (300 ms) | Battery warning | `led_show_battery_warning()` |
 | 5 rapid red blinks (100 ms) | Battery critical | `led_show_battery_critical()` |
-| Alternating green / red (200 ms each) | Calibration confirm (single sequence) | `led_show_calibration_confirm()` |
-| Both LEDs blink simultaneously (150 ms ON, 300 ms OFF) | Calibration mode active (heartbeat until action/timeout) | (new behavior in `buttons.cpp`) |
+| Both LEDs blink simultaneously (150 ms ON, 300 ms OFF) | Calibration mode active (heartbeat until action/timeout) | `buttons.cpp` heartbeat |
 | N green blinks (500 ms) | Battery level indicator (1..5) | `test_battery()` mapping |
 | Single long red blink (1000 ms) | Pump/power error indicator | used for pump failure in runtime |
 
@@ -174,25 +175,25 @@ The hardware test firmware (`src/hardware_test.cpp`) uses additional patterns fo
 
 1. **Dry Calibration** (do this first):
    - Hold sensor in completely dry soil
-   - Press and hold ALL 3 buttons for 2+ seconds
-   - Release all buttons when both LEDs pulse
-   - Long-press the DRY button (red flashing indicates progress)
+   - Press and hold WET + DRY for 2+ seconds
+   - Release both buttons when both LEDs start the heartbeat blink
+   - Long-press the DRY button (green steady indicates progress)
    - Success confirmed with green blinks
 
 2. **Wet Calibration**:
    - Place sensor in water (or saturated soil)
-   - Press and hold ALL 3 buttons for 2+ seconds
-   - Release all buttons
-   - Long-press the WET button (green flashing indicates progress)
+   - Press and hold WET + DRY for 2+ seconds
+   - Release both buttons
+   - Long-press the WET button (red steady indicates progress)
    - Success confirmed with green blinks
 
 ### Setting Target Humidity
 
-1. Hold MAIN + WET buttons together for 2+ seconds
-2. LED will flash current target (e.g., 4 long + 0 short = 40%)
-3. Press WET to increase by 5% (green blink)
-4. Press DRY to decrease by 5% (red blink)
-5. Wait 5 seconds to save (success blinks confirm)
+1. Hold ALL 3 buttons for 2+ seconds (enter adjust mode)
+2. Both LEDs stay on while in adjust mode
+3. Press WET to increase by 5% (green LED briefly turns off)
+4. Press DRY to decrease by 5% (red LED briefly turns off)
+5. Wait for timeout to save and exit
 
 ## Configuration
 
@@ -267,7 +268,7 @@ Expected battery life with 2000mAh battery, 1-hour measurement interval:
    - Manual watering requires 2-second long press
 
 2. **Calibration Protection**:
-   - Requires ALL 3 buttons held for 2+ seconds
+   - Requires WET + DRY held for 2+ seconds
    - Then individual calibration requires another long press
    - Accidental calibration is virtually impossible
 
