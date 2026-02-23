@@ -84,6 +84,14 @@ void led_display_number(uint8_t value);
  */
 void led_display_humidity(uint8_t humidity);
 
+/**
+ * Display battery percentage using RED LED flash pattern.
+ * Tens digit: long red flashes, ones digit: short red flashes.
+ *
+ * @param percent Battery percentage (0-100)
+ */
+void led_display_battery_percent(uint8_t percent);
+
 // =============================================================================
 // STATUS INDICATORS
 // =============================================================================

@@ -147,6 +147,76 @@ void led_display_humidity(uint8_t humidity) {
 }
 
 // =============================================================================
+// BATTERY PERCENTAGE DISPLAY
+// =============================================================================
+
+/**
+ * Display battery percentage using RED LED flash pattern.
+ * Tens digit: long red flashes
+ * Ones digit: short red flashes
+ * Pause between digits.
+ *
+ * Example: 73% → 7 long red flashes, pause, 3 short red flashes
+ */
+void led_display_battery_percent(uint8_t percent) {
+    if (percent > 100) percent = 100;
+
+    // Handle 100% special case
+    if (percent >= 100) {
+        led_red_blink(3, LED_FLASH_LONG_MS);
+        return;
+    }
+
+    uint8_t tens = percent / 10;
+    uint8_t ones = percent % 10;
+
+    // Start indicator - brief flash of both LEDs
+    led_green_on();
+    led_red_on();
+    delay(100);
+    leds_all_off();
+    delay(LED_DIGIT_PAUSE_MS);
+
+    // Display tens digit with long red flashes
+    if (tens > 0) {
+        for (uint8_t i = 0; i < tens; i++) {
+            led_red_on();
+            delay(LED_FLASH_LONG_MS);
+            led_red_off();
+            delay(LED_PAUSE_MS);
+        }
+    }
+
+    // Pause between digits
+    delay(LED_DIGIT_PAUSE_MS);
+
+    // Display ones digit with short red flashes
+    if (ones > 0) {
+        for (uint8_t i = 0; i < ones; i++) {
+            led_red_on();
+            delay(LED_FLASH_SHORT_MS);
+            led_red_off();
+            delay(LED_PAUSE_MS);
+        }
+    } else {
+        // Zero ones: one very brief flash to indicate zero
+        led_red_on();
+        delay(80);
+        led_red_off();
+    }
+
+    // End indicator - brief double flash
+    delay(LED_PAUSE_MS);
+    led_red_on();
+    delay(50);
+    led_red_off();
+    delay(100);
+    led_red_on();
+    delay(50);
+    led_red_off();
+}
+
+// =============================================================================
 // STATUS INDICATORS
 // =============================================================================
 

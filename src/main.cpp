@@ -275,7 +275,7 @@ void handle_first_boot() {
 // ARDUINO FRAMEWORK ENTRY POINTS
 // =============================================================================
 
-// Track wake start time for accurate time tracking
+// Track wake start time for debug logging
 static uint32_t wake_start_ms = 0;
 
 void setup() {
@@ -312,6 +312,17 @@ void setup() {
     Serial.println(" hours");
     #endif
     
+    // Update persistent time tracking BEFORE handling wake reason.
+    // This ensures watering logic sees the correct current time
+    // (including the sleep duration that just elapsed).
+    // NOTE: awake_duration is negligible (<1 s) vs. sleep (3600 s)
+    // and is omitted here to keep time accurate for the watering check.
+    uint32_t sleep_sec = (reason == WAKE_TIMER || reason == WAKE_BUTTON) 
+                         ? MEASUREMENT_INTERVAL_SEC : 0;
+    if (reason != WAKE_UNKNOWN) {
+        storage_increment_boot_count(sleep_sec, 0);
+    }
+
     // Handle based on wake reason
     switch (reason) {
         case WAKE_TIMER:
@@ -334,15 +345,6 @@ void setup() {
             Serial.println("Unknown wake reason, returning to sleep");
             #endif
             break;
-    }
-    
-    // Calculate how long we were awake
-    uint32_t awake_duration_sec = (millis() - wake_start_ms) / 1000;
-    
-    // Update persistent time tracking
-    uint32_t sleep_sec = (reason == WAKE_TIMER) ? MEASUREMENT_INTERVAL_SEC : 0;
-    if (reason == WAKE_TIMER || reason == WAKE_POWER_ON) {
-        storage_increment_boot_count(sleep_sec, awake_duration_sec);
     }
     
     // All done, go to deep sleep

@@ -11,6 +11,7 @@
 #include "config.h"
 #include "leds.h"
 #include "sensor.h"
+#include "battery.h"
 #include "watering.h"
 #include "storage.h"
 
@@ -147,6 +148,8 @@ static ButtonMode resolve_mode(ButtonMode mode,
             mode = MODE_SET_OPTIMAL_HUMIDITY;      // All 3 long → set optimal humidity
         else if (presses_match(presses, PRESS_SHORT, PRESS_NONE,  PRESS_NONE))
             mode = MODE_DISPLAY_HUMIDITY;
+        else if (presses_match(presses, PRESS_NONE,  PRESS_SHORT, PRESS_NONE))
+            mode = MODE_DISPLAY_BATTERY;
         else if (presses_match(presses, PRESS_NONE,  PRESS_NONE,  PRESS_SHORT))
             mode = MODE_DISPLAY_OPTIMAL_HUMIDITY;
 
@@ -200,6 +203,10 @@ static void perform_display_humidity(void) {
 
 static void perform_display_optimal_humidity(void) {
     led_display_number(storage_get_optimal_humidity());
+}
+
+static void perform_display_battery(void) {
+    led_display_battery_percent(battery_get_percent());
 }
 
 static void perform_calibrate_wet(void) {
@@ -378,6 +385,10 @@ void buttons_handle_interaction(bool from_button_wake) {
 
             case MODE_DISPLAY_HUMIDITY:
                 perform_display_humidity();
+                return;
+
+            case MODE_DISPLAY_BATTERY:
+                perform_display_battery();
                 return;
 
             case MODE_DISPLAY_OPTIMAL_HUMIDITY:
