@@ -19,6 +19,7 @@ This document contains the full step-by-step wiring instructions and a consolida
 | 2 | 220Ω resistors | LED current limiting |
 | 1 | Green LED | 3mm or 5mm |
 | 1 | Red LED | 3mm or 5mm |
+| 1 | Mini float switch | PP water level sensor |
 | 3 | Push buttons | Tactile switches |
 | 1 | Breadboard or perfboard | For prototyping |
 
@@ -57,6 +58,14 @@ This document contains the full step-by-step wiring instructions and a consolida
 - Wet calibration → GPIO2 ↔ GND
 - Dry calibration → GPIO1 ↔ GND
 
+6) Water level float switch (active LOW = water low, internal pull-up)
+
+- Float switch wire 1 → ESP32 GPIO10
+- Float switch wire 2 → ESP32 GND
+- Mount at minimum water level inside reservoir
+- Switch closed (water LOW) → GPIO reads LOW → red LED blinks every 15 min, watering disabled
+- Switch open (water OK) → GPIO reads HIGH via pull-up → normal operation
+
 ---
 
 ## Complete Wiring Summary (table)
@@ -78,6 +87,8 @@ This document contains the full step-by-step wiring instructions and a consolida
 | Main Button | GPIO0 ↔ GND |
 | Wet Cal Button | GPIO2 ↔ GND |
 | Dry Cal Button | GPIO1 ↔ GND |
+| Float Switch wire 1 | ESP32 GPIO10 |
+| Float Switch wire 2 | ESP32 GND |
 
 ---
 

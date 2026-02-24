@@ -18,6 +18,7 @@ typedef enum {
     WATER_OK,               // Watering completed successfully
     WATER_NOT_NEEDED,       // Humidity is above optimal, no watering needed
     WATER_BATTERY_LOW,      // Battery too low to water
+    WATER_RESERVOIR_LOW,    // Water reservoir needs refilling
     WATER_TOO_SOON,         // Minimum interval not elapsed
     WATER_SENSOR_ERROR,     // Sensor reading invalid
     WATER_PUMP_FAILED       // Pump failed to run

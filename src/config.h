@@ -29,6 +29,9 @@
 #define PIN_LED_GREEN           GPIO_NUM_6    // Status / humidity display
 #define PIN_LED_RED             GPIO_NUM_7    // Low battery / error
 
+// Water level float switch (connects to GND when water is above threshold)
+#define PIN_WATER_LEVEL         GPIO_NUM_10  // Float switch, active LOW = water OK
+
 // Buttons (connect to GND when pressed, internal pull-ups enabled)
 #define PIN_BTN_MAIN            GPIO_NUM_0   // Main interaction button
 #define PIN_BTN_CAL_WET         GPIO_NUM_2   // Wet calibration button
@@ -93,6 +96,9 @@
 
 // How often to wake and check soil moisture (in seconds)
 #define MEASUREMENT_INTERVAL_SEC    (1 * 60 * 60)   // 1 hour
+
+// How often to wake and flash LEDs when water or battery is low (in seconds)
+#define ALERT_INTERVAL_SEC          (15 * 60)        // 15 minutes
 
 // Conversion factor for deep sleep (microseconds)
 #define SEC_TO_US                   1000000ULL

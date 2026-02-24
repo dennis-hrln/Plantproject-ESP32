@@ -43,6 +43,7 @@
 #include "sensor.h"
 #include "battery.h"
 #include "pump.h"
+#include "water_level.h"
 
 // =============================================================================
 // INTERNAL STATE
@@ -145,24 +146,29 @@ WateringResult watering_check_and_execute() {
         return WATER_NOT_NEEDED;
     }
     
-    // Step 5: Check battery
+    // Step 5: Check water reservoir level
+    if (water_level_low()) {
+        return WATER_RESERVOIR_LOW;
+    }
+    
+    // Step 6: Check battery
     if (!battery_watering_allowed()) {
         return WATER_BATTERY_LOW;
     }
     
-    // Step 6: Check minimum interval
+    // Step 7: Check minimum interval
     if (!interval_elapsed()) {
         return WATER_TOO_SOON;
     }
     
-    // Step 7: All conditions met - run pump
+    // Step 8: All conditions met - run pump
     bool pump_success = pump_run_timed(PUMP_RUN_DURATION_MS);
     
     if (!pump_success) {
         return WATER_PUMP_FAILED;
     }
     
-    // Step 8: Update timestamp
+    // Step 9: Update timestamp
     storage_set_last_watering_time(get_current_time_sec());
     
     return WATER_OK;
@@ -173,7 +179,12 @@ WateringResult watering_check_and_execute() {
 // =============================================================================
 
 WateringResult watering_manual(bool force_override) {
-    // Check battery first (never skip this)
+    // Check water reservoir first (never skip this)
+    if (water_level_low()) {
+        return WATER_RESERVOIR_LOW;
+    }
+    
+    // Check battery (never skip this)
     if (!battery_watering_allowed()) {
         return WATER_BATTERY_LOW;
     }
@@ -201,8 +212,8 @@ WateringResult watering_manual(bool force_override) {
 // =============================================================================
 
 bool watering_is_allowed() {
-    // Check battery and interval, but not humidity
-    return battery_watering_allowed() && interval_elapsed();
+    // Check water level, battery, and interval (not humidity)
+    return water_level_ok() && battery_watering_allowed() && interval_elapsed();
 }
 
 uint32_t watering_get_seconds_until_allowed() {

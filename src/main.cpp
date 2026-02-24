@@ -32,6 +32,7 @@
 #include "watering.h"
 #include "leds.h"
 #include "buttons.h"
+#include "water_level.h"
 
 // =============================================================================
 // WAKE REASON TRACKING
@@ -81,9 +82,12 @@ WakeReason determine_wake_reason() {
  * Configure and enter deep sleep.
  * Sets up timer wake and GPIO wake sources.
  * 
+ * @param sleep_seconds  How long to sleep; defaults to MEASUREMENT_INTERVAL_SEC.
+ *                       Pass ALERT_INTERVAL_SEC for faster wake when alerts are active.
+ *
  * Note: ESP32-C3 uses per-pin gpio_wakeup_enable() configuration
  */
-void enter_deep_sleep() {
+void enter_deep_sleep(uint32_t sleep_seconds = MEASUREMENT_INTERVAL_SEC) {
     // Ensure pump is off before sleeping
     pump_emergency_stop();
     
@@ -93,8 +97,8 @@ void enter_deep_sleep() {
     // Turn off LEDs before sleep
     leds_all_off();
     
-    // Configure timer wake (periodic measurement interval)
-    esp_sleep_enable_timer_wakeup(MEASUREMENT_INTERVAL_SEC * SEC_TO_US);
+    // Configure timer wake (use provided interval)
+    esp_sleep_enable_timer_wakeup((uint64_t)sleep_seconds * SEC_TO_US);
     
     // Configure GPIO wake for buttons (ESP32-C3 deep sleep compatible)
     // ESP32-C3 does NOT support ext0/ext1 wake. It uses esp_deep_sleep_enable_gpio_wakeup()
@@ -144,6 +148,7 @@ void init_hardware() {
     battery_init();
     pump_init();
     watering_init();
+    water_level_init();
     
     // Initialize LEDs and buttons using their modules
     leds_init();
@@ -157,21 +162,37 @@ void init_hardware() {
 /**
  * Handle periodic timer wake.
  * Main purpose: check soil moisture and water if needed.
+ * Also signals alerts for low water reservoir or low battery.
  */
 void handle_timer_wake() {
-    // Quick battery check first
+    // Check water reservoir level
+    bool reservoir_low = water_level_low();
+    
+    if (reservoir_low) {
+        // Red LED: 3 slow blinks to signal low water
+        led_red_blink(3, 800);
+        delay(500);
+    }
+    
+    // Quick battery check
     BatteryState batt = battery_get_state();
     
     if (batt == BATTERY_CRITICAL) {
         // Flash red LED to indicate critically low battery
         led_show_battery_critical();
-        // Don't try to water, go back to sleep
+        // Don't try to water, go back to sleep (alert interval)
         return;
     }
     
     if (batt == BATTERY_WARNING) {
         // Brief red LED warning
         led_show_battery_warning();
+    }
+    
+    // Only attempt watering if reservoir has water
+    if (reservoir_low) {
+        // Skip watering entirely, alert already shown above
+        return;
     }
     
     // Execute main watering logic
@@ -191,6 +212,10 @@ void handle_timer_wake() {
         case WATER_BATTERY_LOW:
             // Red blinks
             led_show_battery_warning();
+            break;
+            
+        case WATER_RESERVOIR_LOW:
+            // Already signalled above; no extra indication needed
             break;
             
         case WATER_TOO_SOON:
@@ -360,7 +385,10 @@ void setup() {
     // Stay awake for button testing
     return;
     #else
-    enter_deep_sleep();
+    // Use shorter alert interval if water reservoir or battery needs attention
+    bool need_alert = water_level_low() || 
+                      (battery_get_state() != BATTERY_OK);
+    enter_deep_sleep(need_alert ? ALERT_INTERVAL_SEC : MEASUREMENT_INTERVAL_SEC);
     #endif
 }
 
