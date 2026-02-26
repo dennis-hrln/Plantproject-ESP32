@@ -17,16 +17,29 @@ void water_level_init() {
     pinMode(PIN_WATER_LEVEL, INPUT_PULLUP);
 }
 
+static bool water_level_low_stable() {
+    uint8_t low_count = 0;
+
+    for (uint8_t i = 0; i < 5; ++i) {
+        if (digitalRead(PIN_WATER_LEVEL) == LOW) {
+            low_count++;
+        }
+        delay(1);
+    }
+
+    return low_count >= 3;
+}
+
 // =============================================================================
 // STATUS
 // =============================================================================
 
 bool water_level_ok() {
     // Switch open (enough water) → pin pulled HIGH
-    return digitalRead(PIN_WATER_LEVEL) == HIGH;
+    return !water_level_low_stable();
 }
 
 bool water_level_low() {
     // Switch closed (water low) → pin pulled LOW
-    return digitalRead(PIN_WATER_LEVEL) == LOW;
+    return water_level_low_stable();
 }
