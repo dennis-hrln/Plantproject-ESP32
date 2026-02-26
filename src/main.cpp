@@ -136,7 +136,7 @@ void init_hardware() {
     // Initialize storage first (needed by other modules)
     if (!storage_init()) {
         // NVS failure — flash error LED and continue with defaults
-        led_red_blink(5, 100);
+        PLAY_PATTERN(NVS_FAIL);
     }
     
     // Configure ADC once (shared by sensor + battery)
@@ -156,6 +156,59 @@ void init_hardware() {
 }
 
 // =============================================================================
+// ALERT DISPLAY (runs on every wake)
+// =============================================================================
+
+/**
+ * Show LED alerts for low water reservoir and/or low battery.
+ * Called on every wake (timer, button, first boot) before the
+ * wake-specific handler runs.
+ *
+ * Sets two output flags via pointers:
+ *   *out_blocks_actions — true if a critical fault should suppress
+ *                         normal button interaction (reservoir low
+ *                         or battery critical)
+ *   *out_has_alert      — true if ANY alert is active (including
+ *                         battery warning); used to pick the shorter
+ *                         15-minute sleep interval
+ */
+void show_alerts(bool *out_blocks_actions, bool *out_has_alert) {
+    bool blocks = false;
+    bool alert  = false;
+    
+    // Check water reservoir level
+    bool reservoir_low = water_level_low();
+    
+    #ifdef DEBUG_SERIAL
+    Serial.print("Water level pin (GPIO10) raw: ");
+    Serial.println(digitalRead(PIN_WATER_LEVEL));
+    Serial.print("Water level low: ");
+    Serial.println(reservoir_low ? "YES" : "NO");
+    #endif
+    
+    if (reservoir_low) {
+        PLAY_PATTERN(WATER_LOW);
+        blocks = true;
+        alert  = true;
+    }
+    
+    // Check battery
+    BatteryState batt = battery_get_state();
+    
+    if (batt == BATTERY_CRITICAL) {
+        led_show_battery_critical();
+        blocks = true;
+        alert  = true;
+    } else if (batt == BATTERY_WARNING) {
+        led_show_battery_warning();
+        alert = true;  // shorter sleep interval, but don't block buttons
+    }
+    
+    *out_blocks_actions = blocks;
+    *out_has_alert      = alert;
+}
+
+// =============================================================================
 // TIMER WAKE HANDLER
 // =============================================================================
 
@@ -165,43 +218,15 @@ void init_hardware() {
  * Also signals alerts for low water reservoir or low battery.
  */
 void handle_timer_wake() {
-    // Check water reservoir level
-    bool reservoir_low = water_level_low();
-    
-    if (reservoir_low) {
-        // Red LED: 3 slow blinks to signal low water
-        led_red_blink(3, 800);
-        delay(500);
-    }
-    
-    // Quick battery check
-    BatteryState batt = battery_get_state();
-    
-    if (batt == BATTERY_CRITICAL) {
-        // Flash red LED to indicate critically low battery
-        led_show_battery_critical();
-        // Don't try to water, go back to sleep (alert interval)
-        return;
-    }
-    
-    if (batt == BATTERY_WARNING) {
-        // Brief red LED warning
-        led_show_battery_warning();
-    }
-    
-    // Only attempt watering if reservoir has water
-    if (reservoir_low) {
-        // Skip watering entirely, alert already shown above
-        return;
-    }
-    
-    // Execute main watering logic
+    // Execute main watering logic.
+    // Water level and battery are also checked inside watering_check_and_execute()
+    // as safety guards, so no redundant pre-check needed here.
     WateringResult result = watering_check_and_execute();
     
     // LED feedback based on result
     switch (result) {
         case WATER_OK:
-            // Watered successfully - green blinks
+        case WATER_PARTIAL:
             led_show_success();
             break;
             
@@ -210,26 +235,23 @@ void handle_timer_wake() {
             break;
             
         case WATER_BATTERY_LOW:
-            // Red blinks
             led_show_battery_warning();
             break;
             
         case WATER_RESERVOIR_LOW:
-            // Already signalled above; no extra indication needed
+            // Already signalled by show_alerts(); no extra indication
             break;
             
         case WATER_TOO_SOON:
-            // Too soon since last watering - no indication
+            // No indication needed
             break;
             
         case WATER_SENSOR_ERROR:
-            // Sensor error
             led_show_error();
             break;
             
         case WATER_PUMP_FAILED:
-            // Pump error - long red
-            led_red_blink(1, 1000);
+            PLAY_PATTERN(PUMP_FAIL);
             break;
     }
 }
@@ -260,16 +282,9 @@ void handle_first_boot() {
     #endif
     
     // Visual indication of power on
-    led_green_blink(2, 200);
-    delay(300);
+    PLAY_PATTERN(BOOT);
     
-    // Check battery on first boot
-    BatteryState batt = battery_get_state();
-    if (batt == BATTERY_CRITICAL) {
-        led_show_battery_critical();
-    } else if (batt == BATTERY_WARNING) {
-        led_show_battery_warning();
-    }
+    // Alerts (low water / low battery) already shown by show_alerts() in setup().
     
     // Check sensor
     uint16_t raw = sensor_read_raw();
@@ -348,6 +363,17 @@ void setup() {
         storage_increment_boot_count(sleep_sec, 0);
     }
 
+    // Alert flags — filled by show_alerts() when it runs
+    bool alert_blocks_actions = false;
+    bool alert_needs_short_sleep = false;
+
+    // For button wakes the user action runs FIRST; alerts are shown
+    // afterwards so the feedback for the button press is immediate.
+    // For all other wake reasons alerts are shown before the handler.
+    if (reason != WAKE_BUTTON) {
+        show_alerts(&alert_blocks_actions, &alert_needs_short_sleep);
+    }
+    
     // Handle based on wake reason
     switch (reason) {
         case WAKE_TIMER:
@@ -355,8 +381,9 @@ void setup() {
             break;
             
         case WAKE_BUTTON:
-            // Brief wake indicator is handled inside buttons_handle_interaction.
             handle_button_wake();
+            // Show low-water / low-battery alerts after the button action
+            show_alerts(&alert_blocks_actions, &alert_needs_short_sleep);
             break;
             
         case WAKE_POWER_ON:
@@ -385,10 +412,10 @@ void setup() {
     // Stay awake for button testing
     return;
     #else
-    // Use shorter alert interval if water reservoir or battery needs attention
-    bool need_alert = water_level_low() || 
-                      (battery_get_state() != BATTERY_OK);
-    enter_deep_sleep(need_alert ? ALERT_INTERVAL_SEC : MEASUREMENT_INTERVAL_SEC);
+    // Use shorter alert interval if water reservoir or battery needs attention.
+    // Reuse the result from show_alerts() to avoid redundant sensor reads.
+    enter_deep_sleep(alert_needs_short_sleep ? ALERT_INTERVAL_SEC 
+                                              : MEASUREMENT_INTERVAL_SEC);
     #endif
 }
 
