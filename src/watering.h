@@ -2,7 +2,7 @@
  * watering.h - Core watering decision logic interface
  * 
  * Central decision engine that determines when to water.
- * Checks humidity, battery, and timing constraints.
+ * Checks humidity, water reservoir level, battery, and timing constraints.
  */
 
 #ifndef WATERING_H
@@ -15,8 +15,9 @@
 // =============================================================================
 
 typedef enum {
-    WATER_OK,               // Watering completed successfully
-    WATER_NOT_NEEDED,       // Humidity is above optimal, no watering needed
+    WATER_OK,               // Watering completed, max humidity reached
+    WATER_PARTIAL,          // Watered but pulse limit reached before max humidity
+    WATER_NOT_NEEDED,       // Humidity is above minimal threshold, no watering needed
     WATER_BATTERY_LOW,      // Battery too low to water
     WATER_RESERVOIR_LOW,    // Water reservoir needs refilling
     WATER_TOO_SOON,         // Minimum interval not elapsed
@@ -44,11 +45,13 @@ void watering_init();
  * 
  * Decision logic:
  * 1. Read sensor → calculate humidity %
- * 2. Compare humidity to optimal threshold
- * 3. Check battery level
- * 4. Check time since last watering
- * 5. If all conditions met → run pump
- * 6. Update last watering timestamp
+ * 2. Compare humidity to minimal threshold
+ * 3. Check water reservoir level
+ * 4. Check battery level
+ * 5. Check time since last watering
+ * 6. If all conditions met → pulse-pump loop:
+ *    pump → wait soak → re-read → repeat until >= max humidity or safety limit
+ * 7. Update last watering timestamp
  * 
  * @return Result code indicating what happened
  */
@@ -69,7 +72,7 @@ WateringResult watering_manual(bool force_override);
 
 /**
  * Check if watering is currently allowed.
- * Combines battery and timing checks (not humidity).
+ * Combines water level, battery, and timing checks (not humidity).
  * 
  * @return true if watering would be permitted
  */
@@ -93,7 +96,7 @@ uint8_t watering_get_current_humidity();
 /**
  * Check if soil needs water based on humidity threshold.
  * 
- * @return true if humidity < optimal threshold
+ * @return true if humidity < minimal threshold
  */
 bool watering_soil_needs_water();
 

@@ -11,8 +11,13 @@
  * └──────────┬──────────┘
  *           Yes
  *            ▼
+ * ┌─────────────────────────┐
+ * │ Humidity < Min Humidity? │──No──▶ Return NOT_NEEDED
+ * └──────────┬───────────────┘
+ *           Yes
+ *            ▼
  * ┌─────────────────────┐
- * │ Humidity < Optimal? │──No──▶ Return NOT_NEEDED
+ * │ Water Level OK?     │──No──▶ Return RESERVOIR_LOW
  * └──────────┬──────────┘
  *           Yes
  *            ▼
@@ -26,15 +31,21 @@
  * └──────────┬──────────┘
  *           Yes
  *            ▼
- * ┌─────────────────────┐
- * │ Run Pump            │
- * └──────────┬──────────┘
+ * ┌─────────────────────────────────────────┐
+ * │ PULSE LOOP:                             │
+ * │  1. Run pump (PUMP_RUN_DURATION_MS)     │
+ * │  2. Wait soak time (SOAK_WAIT_TIME_MS)  │
+ * │  3. Re-read sensor                      │
+ * │  4. Humidity >= Max? → stop (OK)        │
+ * │  5. Pulses >= MAX_PUMP_PULSES? → stop   │
+ * │  6. Battery/reservoir still OK? → loop  │
+ * └──────────┬──────────────────────────────┘
  *            ▼
  * ┌─────────────────────┐
  * │ Update Timestamp    │
  * └──────────┬──────────┘
  *            ▼
- *      Return OK
+ *   Return OK or PARTIAL
  */
 
 #include "watering.h"
@@ -125,6 +136,58 @@ static uint32_t get_seconds_until_interval_elapsed() {
 }
 
 // =============================================================================
+// PULSE-PUMP LOOP
+// =============================================================================
+
+/**
+ * Run the pulse-pump loop: pump → soak → re-read → repeat
+ * until humidity >= max_humidity or safety limit reached.
+ *
+ * @return WATER_OK if max humidity reached,
+ *         WATER_PARTIAL if pulse limit / safety stop,
+ *         WATER_PUMP_FAILED if first pulse fails
+ */
+static WateringResult pump_until_max() {
+    uint8_t max_hum = DEFAULT_MAX_HUMIDITY;
+    uint8_t pulses  = 0;
+    bool    reached_max = false;
+
+    while (pulses < MAX_PUMP_PULSES) {
+        // Run pump for one pulse
+        bool pump_success = pump_run_timed(PUMP_RUN_DURATION_MS);
+        if (!pump_success) {
+            // First pulse failed → pump error; later failure → partial success
+            if (pulses == 0) return WATER_PUMP_FAILED;
+            break;
+        }
+        pulses++;
+
+        // Wait for water to soak into soil before re-reading
+        delay(SOAK_WAIT_TIME_MS);
+
+        // Re-read sensor
+        uint16_t raw = sensor_read_raw();
+        if (!sensor_reading_valid(raw)) {
+            // Sensor error mid-loop — we already delivered water, stop safely
+            break;
+        }
+        current_humidity = sensor_raw_to_humidity_percent(raw);
+
+        // Target reached?
+        if (current_humidity >= max_hum) {
+            reached_max = true;
+            break;
+        }
+
+        // Safety re-checks before next pulse
+        if (!battery_watering_allowed()) break;
+        if (water_level_low())           break;
+    }
+
+    return reached_max ? WATER_OK : WATER_PARTIAL;
+}
+
+// =============================================================================
 // MAIN DECISION LOGIC
 // =============================================================================
 
@@ -140,9 +203,9 @@ WateringResult watering_check_and_execute() {
     // Step 3: Convert to humidity using the same raw reading
     current_humidity = sensor_raw_to_humidity_percent(current_raw_sensor);
     
-    // Step 4: Check if watering is needed (humidity below threshold)
-    uint8_t optimal = storage_get_optimal_humidity();
-    if (current_humidity >= optimal) {
+    // Step 4: Check if watering is needed (humidity below minimal threshold)
+    uint8_t minimal = storage_get_minimal_humidity();
+    if (current_humidity >= minimal) {
         return WATER_NOT_NEEDED;
     }
     
@@ -161,17 +224,15 @@ WateringResult watering_check_and_execute() {
         return WATER_TOO_SOON;
     }
     
-    // Step 8: All conditions met - run pump
-    bool pump_success = pump_run_timed(PUMP_RUN_DURATION_MS);
+    // Step 8: Pulse-pump loop — water until max humidity or safety limit
+    WateringResult result = pump_until_max();
     
-    if (!pump_success) {
-        return WATER_PUMP_FAILED;
+    // Step 9: Update timestamp (even for partial — water was delivered)
+    if (result == WATER_OK || result == WATER_PARTIAL) {
+        storage_set_last_watering_time(get_current_time_sec());
     }
     
-    // Step 9: Update timestamp
-    storage_set_last_watering_time(get_current_time_sec());
-    
-    return WATER_OK;
+    return result;
 }
 
 // =============================================================================
@@ -229,7 +290,7 @@ uint8_t watering_get_current_humidity() {
 
 bool watering_soil_needs_water() {
     uint8_t humidity = sensor_read_humidity_percent();
-    uint8_t optimal = storage_get_optimal_humidity();
+    uint8_t minimal = storage_get_minimal_humidity();
     
-    return (humidity < optimal);
+    return (humidity < minimal);
 }
