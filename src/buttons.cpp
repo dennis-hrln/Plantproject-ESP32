@@ -145,13 +145,13 @@ static ButtonMode resolve_mode(ButtonMode mode,
         else if (presses_match(presses, PRESS_NONE,  PRESS_LONG,  PRESS_LONG))
             mode = MODE_CALIBRATION;              // Wet+Dry long → calibration
         else if (presses_match(presses, PRESS_LONG,  PRESS_LONG,  PRESS_LONG))
-            mode = MODE_SET_OPTIMAL_HUMIDITY;      // All 3 long → set optimal humidity
+            mode = MODE_SET_MINIMAL_HUMIDITY;      // All 3 long → set minimal humidity
         else if (presses_match(presses, PRESS_SHORT, PRESS_NONE,  PRESS_NONE))
             mode = MODE_DISPLAY_HUMIDITY;
         else if (presses_match(presses, PRESS_NONE,  PRESS_SHORT, PRESS_NONE))
             mode = MODE_DISPLAY_BATTERY;
         else if (presses_match(presses, PRESS_NONE,  PRESS_NONE,  PRESS_SHORT))
-            mode = MODE_DISPLAY_OPTIMAL_HUMIDITY;
+            mode = MODE_DISPLAY_MINIMAL_HUMIDITY;
 
     } else if (mode == MODE_CALIBRATION) {
         if      (presses_match(presses, PRESS_NONE, PRESS_LONG, PRESS_NONE))
@@ -159,11 +159,11 @@ static ButtonMode resolve_mode(ButtonMode mode,
         else if (presses_match(presses, PRESS_NONE, PRESS_NONE, PRESS_LONG))
             mode = MODE_CALIBRATE_DRY;   // Dry button → dry calibration
 
-    } else if (mode == MODE_SET_OPTIMAL_HUMIDITY) {
+    } else if (mode == MODE_SET_MINIMAL_HUMIDITY) {
         if (presses_match(presses, PRESS_NONE, PRESS_SHORT, PRESS_NONE))
-            mode = MODE_ADD_OPT_HUMIDITY;    // Wet button → increase (wetter)
+            mode = MODE_ADD_MIN_HUMIDITY;    // Wet button → increase (wetter)
         else if (presses_match(presses, PRESS_NONE, PRESS_NONE,  PRESS_SHORT))
-            mode = MODE_LOWER_OPT_HUMIDITY;  // Dry button → decrease (drier)
+            mode = MODE_LOWER_MIN_HUMIDITY;  // Dry button → decrease (drier)
     }
 
     return mode;
@@ -185,13 +185,14 @@ void buttons_init(void) {
 // =============================================================================
 
 static void perform_manual_watering(void) {
-    led_green_blink(2, 100);
+    PLAY_PATTERN(BTN_ACK);
     // force_override = true: the user explicitly chose to water, so skip
     // the minimum-interval check.  Battery safety is still enforced.
     WateringResult result = watering_manual(true);
 
     switch (result) {
-        case WATER_OK:          led_show_success();          break;
+        case WATER_OK:          // fall through
+        case WATER_PARTIAL:     led_show_success();          break;
         case WATER_BATTERY_LOW: led_show_battery_critical();  break;
         default:                led_show_error();             break;
     }
@@ -201,8 +202,8 @@ static void perform_display_humidity(void) {
     led_display_humidity(sensor_read_humidity_percent());
 }
 
-static void perform_display_optimal_humidity(void) {
-    led_display_number(storage_get_optimal_humidity());
+static void perform_display_minimal_humidity(void) {
+    led_display_humidity(storage_get_minimal_humidity());
 }
 
 static void perform_display_battery(void) {
@@ -223,8 +224,8 @@ static void perform_calibrate_dry(void) {
     led_show_success();
 }
 
-static void adjust_optimal_humidity(int8_t direction) {
-    uint8_t val = storage_get_optimal_humidity();
+static void adjust_minimal_humidity(int8_t direction) {
+    uint8_t val = storage_get_minimal_humidity();
 
     if (direction > 0 && val <= (uint8_t)(100 - HUMIDITY_STEP)) {
         val += HUMIDITY_STEP;
@@ -232,9 +233,9 @@ static void adjust_optimal_humidity(int8_t direction) {
         val -= HUMIDITY_STEP;
     }
 
-    storage_set_optimal_humidity(val);
+    storage_set_minimal_humidity(val);
 
-    // Both LEDs are on in set-optimal-humidity mode.
+    // Both LEDs are on in set-minimal-humidity mode.
     // Briefly turn off the relevant LED to confirm the adjustment.
     if (direction > 0) {
         led_green_off();
@@ -310,16 +311,23 @@ void buttons_handle_interaction(bool from_button_wake) {
         }
     }
 
-    // Brief wake acknowledgment (30 ms green pulse).
+    // Wake acknowledgment (green pulse).
     led_green_on();
-    delay(30);
+    delay(LED_SHORT);
     led_green_off();
 
     // If no button is currently held the press was released during
-    // boot.  ESP32-C3 GPIO wake cannot identify which pin triggered,
-    // so default to the most common short-press action.
+    // boot.  ESP32-C3 GPIO wake cannot identify which pin triggered.
+    // Only fall back to humidity display when the main button is the
+    // most likely source (none of the cal buttons are held either).
     if (from_button_wake && !any_held) {
-        perform_display_humidity();
+        // Re-read cal buttons once more — if either is still low the
+        // user was pressing a calibration button, not main.
+        bool cal_likely = (digitalRead(PIN_BTN_CAL_WET) == LOW) ||
+                          (digitalRead(PIN_BTN_CAL_DRY) == LOW);
+        if (!cal_likely) {
+            perform_display_humidity();
+        }
         return;
     }
 
@@ -327,7 +335,7 @@ void buttons_handle_interaction(bool from_button_wake) {
     uint32_t   last_mode_change_ms = millis();
     uint32_t   deadline_ms         = millis();
 
-    bool    optimal_prompted     = false;
+    bool    minimal_prompted     = false;
 
     while ((millis() - deadline_ms) < MODE_TIMEOUT_MS) {
         ButtonPress presses[BTN_COUNT] = {PRESS_NONE, PRESS_NONE, PRESS_NONE};
@@ -352,7 +360,7 @@ void buttons_handle_interaction(bool from_button_wake) {
 
         // Unrecognized button combination → brief red flash as feedback
         if (any_press && new_mode == mode) {
-            led_red_blink(1, 100);
+            PLAY_PATTERN(BTN_BAD);
             deadline_ms = millis();           // extend timeout so user can retry
             continue;
         }
@@ -361,9 +369,9 @@ void buttons_handle_interaction(bool from_button_wake) {
             if (mode == MODE_CALIBRATION) {
                 calibration_heartbeat_reset();
             }
-            if (mode == MODE_SET_OPTIMAL_HUMIDITY &&
-                new_mode != MODE_ADD_OPT_HUMIDITY &&
-                new_mode != MODE_LOWER_OPT_HUMIDITY) {
+            if (mode == MODE_SET_MINIMAL_HUMIDITY &&
+                new_mode != MODE_ADD_MIN_HUMIDITY &&
+                new_mode != MODE_LOWER_MIN_HUMIDITY) {
                 leds_all_off();
             }
             if (new_mode == MODE_CALIBRATION) {
@@ -372,7 +380,7 @@ void buttons_handle_interaction(bool from_button_wake) {
             mode                 = new_mode;
             last_mode_change_ms  = millis();
             deadline_ms          = millis();   // extend deadline on mode change
-            optimal_prompted     = false;
+            minimal_prompted     = false;
         }
 
         switch (mode) {
@@ -391,8 +399,8 @@ void buttons_handle_interaction(bool from_button_wake) {
                 perform_display_battery();
                 return;
 
-            case MODE_DISPLAY_OPTIMAL_HUMIDITY:
-                perform_display_optimal_humidity();
+            case MODE_DISPLAY_MINIMAL_HUMIDITY:
+                perform_display_minimal_humidity();
                 return;
 
             case MODE_CALIBRATION:
@@ -408,29 +416,29 @@ void buttons_handle_interaction(bool from_button_wake) {
                 perform_calibrate_wet();
                 return;
 
-            case MODE_SET_OPTIMAL_HUMIDITY:
-                if (!optimal_prompted) {
+            case MODE_SET_MINIMAL_HUMIDITY:
+                if (!minimal_prompted) {
                     // Both LEDs stay on while in this mode
                     led_green_on();
                     led_red_on();
-                    optimal_prompted = true;
+                    minimal_prompted = true;
                 }
                 break;
 
-            case MODE_LOWER_OPT_HUMIDITY:
-                adjust_optimal_humidity(-1);
-                mode                = MODE_SET_OPTIMAL_HUMIDITY;
+            case MODE_LOWER_MIN_HUMIDITY:
+                adjust_minimal_humidity(-1);
+                mode                = MODE_SET_MINIMAL_HUMIDITY;
                 last_mode_change_ms = millis();
                 deadline_ms         = millis();
-                optimal_prompted    = false;
+                minimal_prompted    = false;
                 break;
 
-            case MODE_ADD_OPT_HUMIDITY:
-                adjust_optimal_humidity(+1);
-                mode                = MODE_SET_OPTIMAL_HUMIDITY;
+            case MODE_ADD_MIN_HUMIDITY:
+                adjust_minimal_humidity(+1);
+                mode                = MODE_SET_MINIMAL_HUMIDITY;
                 last_mode_change_ms = millis();
                 deadline_ms         = millis();
-                optimal_prompted    = false;
+                minimal_prompted    = false;
                 break;
 
             default:
