@@ -62,17 +62,17 @@ void storage_set_sensor_wet(uint16_t value);
 // =============================================================================
 
 /**
- * Get optimal humidity target percentage.
- * Returns stored value or DEFAULT_OPTIMAL_HUMIDITY if not set.
+ * Get minimal humidity threshold percentage.
+ * Returns stored value or DEFAULT_MINIMAL_HUMIDITY if not set.
  */
-uint8_t storage_get_optimal_humidity();
+uint8_t storage_get_minimal_humidity();
 
 /**
- * Store optimal humidity target percentage.
+ * Store minimal humidity threshold percentage.
  * 
  * @param percent Humidity percentage (0-100)
  */
-void storage_set_optimal_humidity(uint8_t percent);
+void storage_set_minimal_humidity(uint8_t percent);
 
 // =============================================================================
 // WATERING TIMESTAMP

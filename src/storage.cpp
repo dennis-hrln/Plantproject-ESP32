@@ -48,14 +48,14 @@ void storage_set_sensor_wet(uint16_t value) {
 // HUMIDITY SETPOINT
 // =============================================================================
 
-uint8_t storage_get_optimal_humidity() {
-    return prefs.getUChar(NVS_KEY_OPTIMAL_HUMIDITY, DEFAULT_OPTIMAL_HUMIDITY);
+uint8_t storage_get_minimal_humidity() {
+    return prefs.getUChar(NVS_KEY_MINIMAL_HUMIDITY, DEFAULT_MINIMAL_HUMIDITY);
 }
 
-void storage_set_optimal_humidity(uint8_t percent) {
+void storage_set_minimal_humidity(uint8_t percent) {
     // Clamp to valid range
     if (percent > 100) percent = 100;
-    prefs.putUChar(NVS_KEY_OPTIMAL_HUMIDITY, percent);
+    prefs.putUChar(NVS_KEY_MINIMAL_HUMIDITY, percent);
 }
 
 // =============================================================================
