@@ -2,13 +2,14 @@
  * leds.h - LED control interface
  * 
  * Controls status LEDs for user feedback.
- * Provides flash patterns for humidity display.
+ * Provides shared value/status display patterns.
  */
 
 #ifndef LEDS_H
 #define LEDS_H
 
 #include <Arduino.h>
+#include "config.h"
 
 // =============================================================================
 // INITIALIZATION
@@ -60,37 +61,41 @@ void led_green_blink(uint8_t count, uint16_t duration_ms);
  */
 void led_red_blink(uint8_t count, uint16_t duration_ms);
 
-// =============================================================================
-// HUMIDITY DISPLAY
-// =============================================================================
-
 /**
- * Display a two-digit number using LED flash pattern.
- * Tens digit: long flashes
- * Ones digit: short flashes
- * Pause between digits.
- * 
- * Example: 47% → 4 long flashes, pause, 7 short flashes
- * 
- * @param value Value to display (0-99)
- */
-void led_display_number(uint8_t value);
-
-/**
- * Display a humidity value using LED flash pattern.
- * Caller reads the sensor and passes the value.
+ * Play a pattern defined as an array of {green_ms, red_ms} steps.
  *
- * @param humidity Humidity percentage (0-100)
+ * @param steps     Array of LedStep definitions
+ * @param length    Number of steps in the array
+ * @param pause_ms  Pause between individual steps
+ * @param gap_ms    Trailing pause after the whole sequence
  */
-void led_display_humidity(uint8_t humidity);
+void leds_play_pattern(const LedStep steps[], uint8_t length,
+                       uint16_t pause_ms, uint16_t gap_ms);
+
+/** Convenience macro — plays a named pattern from config.h. */
+#define PLAY_PATTERN(name) \
+    leds_play_pattern(PAT_##name, ARRAY_LEN(PAT_##name), \
+                      PAT_##name##_PAUSE_MS, PAT_##name##_GAP_MS)
+
+// =============================================================================
+// VALUE DISPLAY (humidity / battery)
+// =============================================================================
 
 /**
- * Display battery percentage using RED LED flash pattern.
- * Tens digit: long red flashes, ones digit: short red flashes.
+ * Display a percentage value (0-100) using LED flashes.
+ * Tens digit: long flashes, ones digit: short flashes.
+ * Green LED for humidity, red LED for battery.
  *
- * @param percent Battery percentage (0-100)
+ * @param value   Percentage to display (0-100)
+ * @param use_red true = red LED (battery), false = green LED (humidity)
  */
-void led_display_battery_percent(uint8_t percent);
+void led_display_value(uint8_t value, bool use_red);
+
+/** Display humidity percentage (green LED). */
+inline void led_display_humidity(uint8_t humidity) { led_display_value(humidity, false); }
+
+/** Display battery percentage (red LED). */
+inline void led_display_battery_percent(uint8_t percent) { led_display_value(percent, true); }
 
 // =============================================================================
 // STATUS INDICATORS
