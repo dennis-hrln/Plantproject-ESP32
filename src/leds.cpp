@@ -65,155 +65,74 @@ void led_red_blink(uint8_t count, uint16_t duration_ms) {
 }
 
 // =============================================================================
-// HUMIDITY DISPLAY
+// PATTERN PLAYER
 // =============================================================================
 
-/**
- * Display a two-digit number using LED flash pattern.
- * 
- * Pattern:
- * - Brief start indicator (both LEDs)
- * - Pause
- * - TENS digit: Long green flashes (600ms each)
- * - Longer pause (1s)
- * - ONES digit: Short green flashes (200ms each)
- * - End indicator
- * 
- * Special cases:
- * - 0 tens: Skip tens display
- * - 0 ones: One very brief flash
- * - 100%: Three long flashes (special pattern)
- */
-void led_display_number(uint8_t value) {
-    // Handle 100% special case
-    if (value >= 100) {
-        // Three long flashes for 100%
-        led_green_blink(3, LED_FLASH_LONG_MS);
-        return;
+void leds_play_pattern(const LedStep steps[], uint8_t length,
+                       uint16_t pause_ms, uint16_t gap_ms) {
+    for (uint8_t i = 0; i < length; i++) {
+        uint16_t g = steps[i].green_ms;
+        uint16_t r = steps[i].red_ms;
+
+        if (g > 0) led_green_on();
+        if (r > 0) led_red_on();
+
+        // Hold for the longer of the two durations
+        delay((g > r) ? g : r);
+        leds_all_off();
+
+        // Pause between steps (skip after last step)
+        if (pause_ms > 0 && i < length - 1) {
+            delay(pause_ms);
+        }
     }
-    
+
+    if (gap_ms > 0) delay(gap_ms);
+}
+
+// =============================================================================
+// VALUE DISPLAY (humidity = green, battery = red)
+// =============================================================================
+
+static inline void led_on(bool use_red)  { use_red ? led_red_on()  : led_green_on();  }
+static inline void led_off(bool use_red) { use_red ? led_red_off() : led_green_off(); }
+
+static inline void led_blink(bool use_red, uint8_t count, uint16_t ms) {
+    use_red ? led_red_blink(count, ms) : led_green_blink(count, ms);
+}
+
+void led_display_value(uint8_t value, bool use_red) {
+    if (value > 100) value = 100;
+
     uint8_t tens = value / 10;
     uint8_t ones = value % 10;
-    
-    // Start indicator - brief flash of both LEDs
+
+    // Start indicator — both LEDs briefly
     led_green_on();
     led_red_on();
-    delay(100);
-    leds_all_off();
-    delay(LED_DIGIT_PAUSE_MS);
-    
-    // Display tens digit with long flashes
-    if (tens > 0) {
-        for (uint8_t i = 0; i < tens; i++) {
-            led_green_on();
-            delay(LED_FLASH_LONG_MS);
-            led_green_off();
-            delay(LED_PAUSE_MS);
-        }
-    }
-    // If tens is 0, we skip (no flashes for zero tens)
-    
-    // Pause between digits
-    delay(LED_DIGIT_PAUSE_MS);
-    
-    // Display ones digit with short flashes
-    if (ones > 0) {
-        for (uint8_t i = 0; i < ones; i++) {
-            led_green_on();
-            delay(LED_FLASH_SHORT_MS);
-            led_green_off();
-            delay(LED_PAUSE_MS);
-        }
-    } else {
-        // Zero ones: one very brief flash to indicate zero
-        led_green_on();
-        delay(80);
-        led_green_off();
-    }
-    
-    // End indicator - brief double flash
-    delay(LED_PAUSE_MS);
-    led_green_on();
-    delay(50);
-    led_green_off();
-    delay(100);
-    led_green_on();
-    delay(50);
-    led_green_off();
-}
-
-void led_display_humidity(uint8_t humidity) {
-    led_display_number(humidity);
-}
-
-// =============================================================================
-// BATTERY PERCENTAGE DISPLAY
-// =============================================================================
-
-/**
- * Display battery percentage using RED LED flash pattern.
- * Tens digit: long red flashes
- * Ones digit: short red flashes
- * Pause between digits.
- *
- * Example: 73% → 7 long red flashes, pause, 3 short red flashes
- */
-void led_display_battery_percent(uint8_t percent) {
-    if (percent > 100) percent = 100;
-
-    // Handle 100% special case
-    if (percent >= 100) {
-        led_red_blink(3, LED_FLASH_LONG_MS);
-        return;
-    }
-
-    uint8_t tens = percent / 10;
-    uint8_t ones = percent % 10;
-
-    // Start indicator - brief flash of both LEDs
-    led_green_on();
-    led_red_on();
-    delay(100);
+    delay(LED_NUMBER_START_MS);
     leds_all_off();
     delay(LED_DIGIT_PAUSE_MS);
 
-    // Display tens digit with long red flashes
+    // Tens digit (long flashes)
     if (tens > 0) {
-        for (uint8_t i = 0; i < tens; i++) {
-            led_red_on();
-            delay(LED_FLASH_LONG_MS);
-            led_red_off();
-            delay(LED_PAUSE_MS);
-        }
+        led_blink(use_red, tens, LED_LONG);
     }
 
-    // Pause between digits
     delay(LED_DIGIT_PAUSE_MS);
 
-    // Display ones digit with short red flashes
+    // Ones digit (short flashes) or zero indicator
     if (ones > 0) {
-        for (uint8_t i = 0; i < ones; i++) {
-            led_red_on();
-            delay(LED_FLASH_SHORT_MS);
-            led_red_off();
-            delay(LED_PAUSE_MS);
-        }
+        led_blink(use_red, ones, LED_SHORT);
     } else {
-        // Zero ones: one very brief flash to indicate zero
-        led_red_on();
-        delay(80);
-        led_red_off();
+        led_on(!use_red);
+        delay(LED_RAPID);
+        led_off(!use_red);
     }
 
-    // End indicator - brief double flash
+    // End indicator — double flash (pattern from config.h)
     delay(LED_PAUSE_MS);
-    led_red_on();
-    delay(50);
-    led_red_off();
-    delay(100);
-    led_red_on();
-    delay(50);
-    led_red_off();
+    PLAY_PATTERN(NUM_END);
 }
 
 // =============================================================================
@@ -221,34 +140,21 @@ void led_display_battery_percent(uint8_t percent) {
 // =============================================================================
 
 void led_show_battery_warning() {
-    // Yellow effect: alternate red and green, or just red blinks
-    led_red_blink(2, 300);
+    PLAY_PATTERN(BATT_WARN);
 }
 
 void led_show_battery_critical() {
-    // Rapid red flashing
-    led_red_blink(5, 100);
+    PLAY_PATTERN(BATT_CRIT);
 }
 
 void led_show_calibration_confirm() {
-    // Green-red alternating to confirm calibration
-    led_green_on();
-    delay(200);
-    led_green_off();
-    led_red_on();
-    delay(200);
-    led_red_off();
-    led_green_on();
-    delay(200);
-    led_green_off();
+    PLAY_PATTERN(CAL_CONFIRM);
 }
 
 void led_show_error() {
-    // Rapid red blinks
-    led_red_blink(3, 100);
+    PLAY_PATTERN(ERROR);
 }
 
 void led_show_success() {
-    // Two solid green blinks
-    led_green_blink(2, 300);
+    PLAY_PATTERN(SUCCESS);
 }
