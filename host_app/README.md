@@ -51,6 +51,10 @@ Command Payload Examples
 - set_max:70
 - set_name:Office Fern
 
+Plant Name Behavior
+- Device side: plant name is persisted on ESP32 (NVS) and survives reboot.
+- Receiver side: after a successful set_name ACK, historical stored data files are rewritten so existing records use the new plant name.
+
 Receiver Data Persistence
 - The headless receiver stores all incoming events to:
   host_app/data/events.jsonl
