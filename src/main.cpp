@@ -34,6 +34,19 @@
 #include "leds.h"
 #include "buttons.h"
 #include "water_level.h"
+#include "mqtt_control.h"
+
+#if (CONTROL_MODE == CONTROL_MODE_BUTTONS || CONTROL_MODE == CONTROL_MODE_BOTH)
+#define CONTROL_HAS_BUTTONS 1
+#else
+#define CONTROL_HAS_BUTTONS 0
+#endif
+
+#if (CONTROL_MODE == CONTROL_MODE_MQTT || CONTROL_MODE == CONTROL_MODE_BOTH)
+#define CONTROL_HAS_MQTT 1
+#else
+#define CONTROL_HAS_MQTT 0
+#endif
 
 static inline void actuator_init() {
 #if (ACTUATOR_TYPE == ACTUATOR_TYPE_STEPPER)
@@ -117,19 +130,19 @@ void enter_deep_sleep(uint32_t sleep_seconds = MEASUREMENT_INTERVAL_SEC) {
     // Configure timer wake (use provided interval)
     esp_sleep_enable_timer_wakeup((uint64_t)sleep_seconds * SEC_TO_US);
     
+    #if CONTROL_HAS_BUTTONS
     // Configure GPIO wake for buttons (ESP32-C3 deep sleep compatible)
-    // ESP32-C3 does NOT support ext0/ext1 wake. It uses esp_deep_sleep_enable_gpio_wakeup()
-    // which is available in ESP-IDF 5.0+ / Arduino ESP32 core 3.0+.
-    uint64_t wake_mask = (1ULL << PIN_BTN_MAIN) | 
-                         (1ULL << PIN_BTN_CAL_WET) | 
+    uint64_t wake_mask = (1ULL << PIN_BTN_MAIN) |
+                         (1ULL << PIN_BTN_CAL_WET) |
                          (1ULL << PIN_BTN_CAL_DRY);
     esp_deep_sleep_enable_gpio_wakeup(wake_mask, ESP_GPIO_WAKEUP_GPIO_LOW);
-    
+
     // Hold GPIO pull-up configuration during deep sleep
     gpio_hold_en(PIN_BTN_MAIN);
     gpio_hold_en(PIN_BTN_CAL_WET);
     gpio_hold_en(PIN_BTN_CAL_DRY);
     gpio_deep_sleep_hold_en();
+    #endif
     
     // Enter deep sleep (function does not return)
     esp_deep_sleep_start();
@@ -145,10 +158,12 @@ void enter_deep_sleep(uint32_t sleep_seconds = MEASUREMENT_INTERVAL_SEC) {
  */
 void init_hardware() {
     // Release GPIO holds from deep sleep so pins can be reconfigured
+    #if CONTROL_HAS_BUTTONS
     gpio_hold_dis(PIN_BTN_MAIN);
     gpio_hold_dis(PIN_BTN_CAL_WET);
     gpio_hold_dis(PIN_BTN_CAL_DRY);
     gpio_deep_sleep_hold_dis();
+    #endif
     
     // Initialize storage first (needed by other modules)
     if (!storage_init()) {
@@ -169,7 +184,9 @@ void init_hardware() {
     
     // Initialize LEDs and buttons using their modules
     leds_init();
+#if CONTROL_HAS_BUTTONS
     buttons_init();
+#endif
 }
 
 // =============================================================================
@@ -350,7 +367,7 @@ void setup() {
     
     // Initialize all hardware
     init_hardware();
-    
+
     // Determine why we woke up
     WakeReason reason = determine_wake_reason();
     
@@ -398,7 +415,9 @@ void setup() {
             break;
             
         case WAKE_BUTTON:
+#if CONTROL_HAS_BUTTONS
             handle_button_wake();
+#endif
             // Show low-water / low-battery alerts after the button action
             show_alerts(&alert_blocks_actions, &alert_needs_short_sleep);
             break;
@@ -415,6 +434,13 @@ void setup() {
             #endif
             break;
     }
+
+#if CONTROL_HAS_MQTT
+    // MQTT runs during wake window (setup), before returning to deep sleep.
+    mqtt_control_init();
+    mqtt_control_process_for(MQTT_COMMAND_WINDOW_MS);
+    mqtt_control_publish_telemetry();
+#endif
     
     // All done, go to deep sleep
     #ifdef DEBUG_SERIAL
@@ -440,7 +466,12 @@ void loop() {
     #if DEBUG_NO_SLEEP
     // Poll buttons while awake for troubleshooting.
     // buttons_handle_interaction() blocks for up to MODE_TIMEOUT_MS.
+    #if CONTROL_HAS_MQTT
+    mqtt_control_process();
+    #endif
+    #if CONTROL_HAS_BUTTONS
     buttons_handle_interaction();
+    #endif
     #else
     // This should never execute because we enter deep sleep in setup()
     enter_deep_sleep();

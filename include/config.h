@@ -38,6 +38,37 @@
 #define ACTUATOR_TYPE            ACTUATOR_TYPE_PUMP
 
 // =============================================================================
+// CONTROL SOURCE SELECTION
+// =============================================================================
+// CONTROL_MODE_BUTTONS: local button interactions
+// CONTROL_MODE_MQTT: remote actions via MQTT commands
+// CONTROL_MODE_BOTH: buttons and MQTT together
+#define CONTROL_MODE_BUTTONS      0
+#define CONTROL_MODE_MQTT         1
+#define CONTROL_MODE_BOTH         2
+
+// Select control source here.
+#define CONTROL_MODE              CONTROL_MODE_BUTTONS
+
+// =============================================================================
+// MQTT SETTINGS (used when CONTROL_MODE includes MQTT)
+// =============================================================================
+#define MQTT_WIFI_SSID            "YOUR_WIFI_SSID"
+#define MQTT_WIFI_PASSWORD        "YOUR_WIFI_PASSWORD"
+
+#define MQTT_BROKER_HOST          "192.168.1.10"
+#define MQTT_BROKER_PORT          1883
+#define MQTT_BROKER_USER          ""
+#define MQTT_BROKER_PASSWORD      ""
+
+#define MQTT_CLIENT_ID            "plant-esp32c3"
+#define MQTT_TOPIC_COMMAND        "plant/cmd"
+#define MQTT_TOPIC_STATUS         "plant/status"
+
+#define MQTT_RECONNECT_MS         5000
+#define MQTT_COMMAND_WINDOW_MS    3000
+
+// =============================================================================
 // STEPPER DRIVER CONFIG (used only when ACTUATOR_TYPE == ACTUATOR_TYPE_STEPPER)
 // =============================================================================
 #define STEPPER_DRIVER_A4988     0
