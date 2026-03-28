@@ -1,8 +1,8 @@
 /**
  * pump.h - Water pump control interface
  * 
- * Controls pump via N-MOSFET with safety features.
- * Enforces maximum run time and battery checks.
+ * Controls pump via N-MOSFET with safety timeout.
+ * Battery and policy checks are handled by higher-level watering logic.
  */
 
 #ifndef PUMP_H

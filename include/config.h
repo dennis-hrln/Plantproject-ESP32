@@ -25,6 +25,37 @@
 // Pump control (N-MOSFET gate)
 #define PIN_PUMP                GPIO_NUM_5    // Digital output to MOSFET
 
+// =============================================================================
+// ACTUATOR SELECTION
+// =============================================================================
+// Choose one physical actuator backend for watering output.
+// ACTUATOR_TYPE_PUMP:    DC pump via PIN_PUMP
+// ACTUATOR_TYPE_STEPPER: Stepper via STEP/DIR/ENABLE driver
+#define ACTUATOR_TYPE_PUMP       0
+#define ACTUATOR_TYPE_STEPPER    1
+
+// Select active actuator here.
+#define ACTUATOR_TYPE            ACTUATOR_TYPE_PUMP
+
+// =============================================================================
+// STEPPER DRIVER CONFIG (used only when ACTUATOR_TYPE == ACTUATOR_TYPE_STEPPER)
+// =============================================================================
+#define STEPPER_DRIVER_A4988     0
+#define STEPPER_DRIVER_DRV8825   1
+
+// Select stepper driver here.
+#define STEPPER_DRIVER_TYPE      STEPPER_DRIVER_A4988
+
+// Stepper driver pins (choose free GPIOs that match your wiring)
+#define PIN_STEPPER_STEP         GPIO_NUM_21
+#define PIN_STEPPER_DIR          GPIO_NUM_20
+#define PIN_STEPPER_EN           GPIO_NUM_8
+
+// Stepper behavior
+#define STEPPER_DEFAULT_DIR_CW   1      // 1=CW/high, 0=CCW/low
+#define STEPPER_STEP_HZ          400    // steps per second while running timed mode
+#define STEPPER_DISABLE_WHEN_IDLE 1     // 1=disable driver on motor_off, 0=keep enabled
+
 // LEDs
 #define PIN_LED_GREEN           GPIO_NUM_6    // Status / humidity display
 #define PIN_LED_RED             GPIO_NUM_7    // Low battery / error

@@ -54,7 +54,16 @@
 #include "sensor.h"
 #include "battery.h"
 #include "pump.h"
+#include "motor.h"
 #include "water_level.h"
+
+static inline bool actuator_run_timed(uint32_t duration_ms) {
+#if (ACTUATOR_TYPE == ACTUATOR_TYPE_STEPPER)
+    return motor_run_timed(duration_ms);
+#else
+    return pump_run_timed(duration_ms);
+#endif
+}
 
 // =============================================================================
 // INTERNAL STATE
@@ -153,8 +162,13 @@ static WateringResult pump_until_max() {
     bool    reached_max = false;
 
     while (pulses < MAX_PUMP_PULSES) {
+        // Battery check belongs to decision logic, before each watering pulse.
+        if (!battery_watering_allowed()) {
+            return (pulses == 0) ? WATER_BATTERY_LOW : WATER_PARTIAL;
+        }
+
         // Run pump for one pulse
-        bool pump_success = pump_run_timed(PUMP_RUN_DURATION_MS);
+        bool pump_success = actuator_run_timed(PUMP_RUN_DURATION_MS);
         if (!pump_success) {
             // First pulse failed → pump error; later failure → partial success
             if (pulses == 0) return WATER_PUMP_FAILED;
@@ -256,7 +270,7 @@ WateringResult watering_manual(bool force_override) {
     }
     
     // Run pump
-    bool pump_success = pump_run_timed(PUMP_RUN_DURATION_MS);
+    bool pump_success = actuator_run_timed(PUMP_RUN_DURATION_MS);
     
     if (!pump_success) {
         return WATER_PUMP_FAILED;

@@ -29,10 +29,27 @@
 #include "sensor.h"
 #include "battery.h"
 #include "pump.h"
+#include "motor.h"
 #include "watering.h"
 #include "leds.h"
 #include "buttons.h"
 #include "water_level.h"
+
+static inline void actuator_init() {
+#if (ACTUATOR_TYPE == ACTUATOR_TYPE_STEPPER)
+    motor_init();
+#else
+    pump_init();
+#endif
+}
+
+static inline void actuator_emergency_stop() {
+#if (ACTUATOR_TYPE == ACTUATOR_TYPE_STEPPER)
+    motor_emergency_stop();
+#else
+    pump_emergency_stop();
+#endif
+}
 
 // =============================================================================
 // WAKE REASON TRACKING
@@ -89,7 +106,7 @@ WakeReason determine_wake_reason() {
  */
 void enter_deep_sleep(uint32_t sleep_seconds = MEASUREMENT_INTERVAL_SEC) {
     // Ensure pump is off before sleeping
-    pump_emergency_stop();
+    actuator_emergency_stop();
     
     // Close NVS cleanly
     storage_close();
@@ -146,7 +163,7 @@ void init_hardware() {
     // Initialize sensors and actuators
     sensor_init();
     battery_init();
-    pump_init();
+    actuator_init();
     watering_init();
     water_level_init();
     

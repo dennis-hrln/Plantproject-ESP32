@@ -4,7 +4,6 @@
 
 #include "pump.h"
 #include "config.h"
-#include "battery.h"
 
 // Track pump state
 static bool pump_running = false;
@@ -16,7 +15,7 @@ static bool pump_running = false;
 void pump_init() {
     // Configure pump control pin as output
     pinMode(PIN_PUMP, OUTPUT);
-    
+
     // Ensure pump starts OFF (LOW = MOSFET off = pump off)
     digitalWrite(PIN_PUMP, LOW);
     pump_running = false;
@@ -45,31 +44,20 @@ bool pump_run_timed(uint32_t duration_ms) {
     if (duration_ms > PUMP_MAX_DURATION_MS) {
         duration_ms = PUMP_MAX_DURATION_MS;
     }
-    
-    // Check battery before starting
-    if (!battery_watering_allowed()) {
-        return false;
-    }
-    
+
     // Start pump
     pump_on();
-    
+
     // Wait for duration (simple blocking delay)
-    // Could be improved with non-blocking approach if needed
     uint32_t start_time = millis();
-    
+
     while ((millis() - start_time) < duration_ms) {
-        // Periodically check battery during operation
-        if (!battery_watering_allowed()) {
-            pump_emergency_stop();
-            return false;
-        }
-        yield();  // let watchdog / background tasks run
+        yield();
     }
-    
+
     // Stop pump
     pump_off();
-    
+
     return true;
 }
 
