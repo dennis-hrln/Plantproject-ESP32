@@ -158,7 +158,7 @@ Summary of LED patterns used by the main firmware (functions in `src/leds.cpp`).
 
 **Hardware Test LED Patterns**
 
-The hardware test firmware (`src/hardware_test.cpp`) uses additional patterns for diagnostics. These are visible when you upload the `hardware_test` environment and run the button-driven tests.
+The hardware test firmware (`test/hardware_test.cpp`) uses additional patterns for diagnostics. These are visible when you upload the `hardware_test` environment and run the button-driven tests.
 
 | Pattern | Meaning |
 |---------|---------|
@@ -202,7 +202,7 @@ The hardware test firmware (`src/hardware_test.cpp`) uses additional patterns fo
 
 ## Configuration
 
-Edit `src/config.h` to customize:
+Edit `include/config.h` to customize:
 
 ### Watering behavior
 
@@ -249,7 +249,7 @@ pio device monitor        # Monitor serial output (debug mode)
 ### Arduino IDE
 
 1. Install ESP32 board support
-2. Copy all `.cpp` and `.h` files from `src/` to your sketch folder
+2. Copy all `.cpp` files from `src/` and all `.h` files from `include/` to your sketch folder
 3. Rename `main.cpp` to `YourSketchName.ino`
 4. Select board: "ESP32 Dev Module"
 5. Upload
