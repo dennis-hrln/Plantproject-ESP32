@@ -1,6 +1,8 @@
 [![Cirkit Designer Preview](https://app.cirkitdesigner.com/api/project/a6507e17-3860-47a8-9a6b-0286741713fa/screenshot?width=800)](https://app.cirkitdesigner.com/project/a6507e17-3860-47a8-9a6b-0286741713fa?view=interactive_preview)
 
-**Edit this project interactively in [Cirkit Designer](https://app.cirkitdesigner.com/project/a6507e17-3860-47a8-9a6b-0286741713fa).**
+**[With normal Pump](https://app.cirkitdesigner.com/project/a6507e17-3860-47a8-9a6b-0286741713fa).**
+
+**[With transistor]**
 
 # Wiring Guide
 
@@ -12,9 +14,11 @@ This document contains the full step-by-step wiring instructions and a consolida
 |----------|-----------|--------------|
 | 1 | ESP32-C3 Supermini board | HW-466AB |
 | 1 | Capacitive soil moisture sensor | v1.2 or v2.0 |
-| 1 | Mini water pump 3-6V | DC submersible pump |
+| 0/1 | Mini water pump 3-6V | DC submersible pump |
+| 0/1 | Stepper motor pump 3-6vV| peristaltic|
+| 0/1 | stepper motor driver| A4988 DRV8825  |
 | 1 | N-channel MOSFET | IRLZ44N or 2N7000 |
-| 1 | 3xAA Alkaline battery | 4.5V nominal |
+| 4 | AA  battery | alkaline |
 | 2 | 100kΩ resistors | Voltage divider |
 | 2 | 220Ω resistors | LED current limiting |
 | 1 | Green LED | 3mm or 5mm |
@@ -89,7 +93,3 @@ This document contains the full step-by-step wiring instructions and a consolida
 | Dry Cal Button | GPIO1 ↔ GND |
 | Float Switch wire 1 | ESP32 GPIO10 |
 | Float Switch wire 2 | ESP32 GND |
-
----
-
-If you want this file expanded with images or a printable checklist, tell me and I will add them.

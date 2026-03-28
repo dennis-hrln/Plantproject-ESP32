@@ -1,0 +1,11 @@
+{
+  "broker_host": "192.168.1.10",
+  "broker_port": 1883,
+  "username": "",
+  "password": "",
+  "client_id": "plant-host-dashboard",
+  "topic_command": "plant/cmd",
+  "topic_status": "plant/status",
+  "topic_telemetry": "plant/telemetry",
+  "topic_ack": "plant/ack"
+}

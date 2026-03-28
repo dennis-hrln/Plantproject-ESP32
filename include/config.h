@@ -64,6 +64,8 @@
 #define MQTT_CLIENT_ID            "plant-esp32c3"
 #define MQTT_TOPIC_COMMAND        "plant/cmd"
 #define MQTT_TOPIC_STATUS         "plant/status"
+#define MQTT_TOPIC_TELEMETRY      "plant/telemetry"
+#define MQTT_TOPIC_ACK            "plant/ack"
 
 #define MQTT_RECONNECT_MS         5000
 #define MQTT_COMMAND_WINDOW_MS    3000
