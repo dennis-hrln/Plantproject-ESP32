@@ -148,7 +148,7 @@ static uint32_t get_seconds_until_interval_elapsed() {
  *         WATER_PUMP_FAILED if first pulse fails
  */
 static WateringResult pump_until_max() {
-    uint8_t max_hum = DEFAULT_MAX_HUMIDITY;
+    uint8_t max_hum = storage_get_max_humidity();
     uint8_t pulses  = 0;
     bool    reached_max = false;
 

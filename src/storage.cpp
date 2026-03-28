@@ -58,6 +58,16 @@ void storage_set_minimal_humidity(uint8_t percent) {
     prefs.putUChar(NVS_KEY_MINIMAL_HUMIDITY, percent);
 }
 
+uint8_t storage_get_max_humidity() {
+    return prefs.getUChar(NVS_KEY_MAX_HUMIDITY, DEFAULT_MAX_HUMIDITY);
+}
+
+void storage_set_max_humidity(uint8_t percent) {
+    // Clamp to valid range
+    if (percent > 100) percent = 100;
+    prefs.putUChar(NVS_KEY_MAX_HUMIDITY, percent);
+}
+
 // =============================================================================
 // WATERING TIMESTAMP
 // =============================================================================

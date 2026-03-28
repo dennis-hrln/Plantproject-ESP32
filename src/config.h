@@ -61,11 +61,11 @@
 // Example: 100k / (100k + 100k) = 0.5 → multiply ADC voltage by 2
 #define BATTERY_DIVIDER_RATIO   2.0
 
-// 3× Alkaline AA: fresh ~4.8V (3×1.6V), nominal 4.5V (3×1.5V), dead ~2.7V (3×0.9V)
+// 3× Alkaline AA: fresh ~4.8V (3×1.6V), nominal 4.5V (3×1.5V), dead 3.8V (3×0.9V)
 #define BATTERY_FULL_MV         4500    // Nominal fresh (3 × 1.5V)
-#define BATTERY_WARNING_MV      3600    // Getting low  (3 × 1.2V)
-#define BATTERY_CRITICAL_MV     3000    // Disable watering (3 × 1.0V)
-#define BATTERY_EMPTY_MV        2700    // Dead (3 × 0.9V)
+#define BATTERY_WARNING_MV      4400    // Getting low  (3 × 1.2V)
+#define BATTERY_CRITICAL_MV     4000    // Disable watering (3 × 1.0V)
+#define BATTERY_EMPTY_MV        3800    // Dead (3 × 0.9V)
 
 // =============================================================================
 // SOIL SENSOR DEFAULTS (raw ADC values, will be overwritten by calibration)
@@ -276,6 +276,7 @@ static const LedStep PAT_NUM_END[] = {
 #define NVS_KEY_SENSOR_DRY          "sensor_dry"
 #define NVS_KEY_SENSOR_WET          "sensor_wet"
 #define NVS_KEY_MINIMAL_HUMIDITY    "min_humid"
+#define NVS_KEY_MAX_HUMIDITY        "max_humid"
 #define NVS_KEY_LAST_WATERING       "last_water"
 #define NVS_KEY_BOOT_COUNT          "boot_count"
 #define NVS_KEY_TOTAL_TIME          "total_time"

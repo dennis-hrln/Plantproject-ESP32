@@ -34,14 +34,18 @@ typedef enum {
     MODE_GENERAL,
     MODE_PLANT_WATERING,
     MODE_DISPLAY_HUMIDITY,
-    MODE_DISPLAY_MINIMAL_HUMIDITY,
+    MODE_DISPLAY_HUMIDITY_RANGE,     // Show min (green) then max (red)
     MODE_CALIBRATION,
     MODE_CALIBRATE_DRY,
     MODE_CALIBRATE_WET,
     MODE_DISPLAY_BATTERY,
-    MODE_SET_MINIMAL_HUMIDITY,
+    MODE_SET_HUMIDITY,               // Parent: choose min or max to adjust
+    MODE_SET_MIN_HUMIDITY,           // Adjusting min humidity
+    MODE_SET_MAX_HUMIDITY,           // Adjusting max humidity
     MODE_LOWER_MIN_HUMIDITY,
-    MODE_ADD_MIN_HUMIDITY
+    MODE_ADD_MIN_HUMIDITY,
+    MODE_LOWER_MAX_HUMIDITY,
+    MODE_ADD_MAX_HUMIDITY
 } ButtonMode;
 
 // =============================================================================

@@ -74,6 +74,19 @@ uint8_t storage_get_minimal_humidity();
  */
 void storage_set_minimal_humidity(uint8_t percent);
 
+/**
+ * Get max humidity target percentage.
+ * Returns stored value or DEFAULT_MAX_HUMIDITY if not set.
+ */
+uint8_t storage_get_max_humidity();
+
+/**
+ * Store max humidity target percentage.
+ * 
+ * @param percent Humidity percentage (0-100)
+ */
+void storage_set_max_humidity(uint8_t percent);
+
 // =============================================================================
 // WATERING TIMESTAMP
 // =============================================================================

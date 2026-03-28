@@ -145,13 +145,13 @@ static ButtonMode resolve_mode(ButtonMode mode,
         else if (presses_match(presses, PRESS_NONE,  PRESS_LONG,  PRESS_LONG))
             mode = MODE_CALIBRATION;              // Wet+Dry long → calibration
         else if (presses_match(presses, PRESS_LONG,  PRESS_LONG,  PRESS_LONG))
-            mode = MODE_SET_MINIMAL_HUMIDITY;      // All 3 long → set minimal humidity
+            mode = MODE_SET_HUMIDITY;              // All 3 long → set humidity mode
         else if (presses_match(presses, PRESS_SHORT, PRESS_NONE,  PRESS_NONE))
             mode = MODE_DISPLAY_HUMIDITY;
         else if (presses_match(presses, PRESS_NONE,  PRESS_SHORT, PRESS_NONE))
             mode = MODE_DISPLAY_BATTERY;
         else if (presses_match(presses, PRESS_NONE,  PRESS_NONE,  PRESS_SHORT))
-            mode = MODE_DISPLAY_MINIMAL_HUMIDITY;
+            mode = MODE_DISPLAY_HUMIDITY_RANGE;
 
     } else if (mode == MODE_CALIBRATION) {
         if      (presses_match(presses, PRESS_NONE, PRESS_LONG, PRESS_NONE))
@@ -159,11 +159,24 @@ static ButtonMode resolve_mode(ButtonMode mode,
         else if (presses_match(presses, PRESS_NONE, PRESS_NONE, PRESS_LONG))
             mode = MODE_CALIBRATE_DRY;   // Dry button → dry calibration
 
-    } else if (mode == MODE_SET_MINIMAL_HUMIDITY) {
+    } else if (mode == MODE_SET_HUMIDITY) {
+        // Parent mode: choose which humidity to adjust
+        if      (presses_match(presses, PRESS_NONE, PRESS_LONG, PRESS_NONE))
+            mode = MODE_SET_MAX_HUMIDITY;    // Long WET → adjust max humidity
+        else if (presses_match(presses, PRESS_NONE, PRESS_NONE, PRESS_LONG))
+            mode = MODE_SET_MIN_HUMIDITY;    // Long DRY → adjust min humidity
+
+    } else if (mode == MODE_SET_MIN_HUMIDITY) {
         if (presses_match(presses, PRESS_NONE, PRESS_SHORT, PRESS_NONE))
             mode = MODE_ADD_MIN_HUMIDITY;    // Wet button → increase (wetter)
         else if (presses_match(presses, PRESS_NONE, PRESS_NONE,  PRESS_SHORT))
             mode = MODE_LOWER_MIN_HUMIDITY;  // Dry button → decrease (drier)
+
+    } else if (mode == MODE_SET_MAX_HUMIDITY) {
+        if (presses_match(presses, PRESS_NONE, PRESS_SHORT, PRESS_NONE))
+            mode = MODE_ADD_MAX_HUMIDITY;    // Wet button → increase
+        else if (presses_match(presses, PRESS_NONE, PRESS_NONE,  PRESS_SHORT))
+            mode = MODE_LOWER_MAX_HUMIDITY;  // Dry button → decrease
     }
 
     return mode;
@@ -202,8 +215,11 @@ static void perform_display_humidity(void) {
     led_display_humidity(sensor_read_humidity_percent());
 }
 
-static void perform_display_minimal_humidity(void) {
-    led_display_humidity(storage_get_minimal_humidity());
+static void perform_display_humidity_range(void) {
+    // Show min humidity in green flashes, then max humidity in red flashes
+    led_display_value(storage_get_minimal_humidity(), false);  // green
+    delay(LED_DIGIT_PAUSE_MS);                                // pause between the two
+    led_display_value(storage_get_max_humidity(), true);       // red
 }
 
 static void perform_display_battery(void) {
@@ -235,16 +251,42 @@ static void adjust_minimal_humidity(int8_t direction) {
 
     storage_set_minimal_humidity(val);
 
-    // Both LEDs are on in set-minimal-humidity mode.
-    // Briefly turn off the relevant LED to confirm the adjustment.
+    // Green LED is on in set-min-humidity mode.
     if (direction > 0) {
+        // Increase: green blinks off briefly (off→on)
         led_green_off();
-        delay(300);
+        delay(LED_PAUSE_MS);
         led_green_on();
     } else {
-        led_red_off();
-        delay(300);
+        // Decrease: red blinks on briefly (on→off)
         led_red_on();
+        delay(LED_PAUSE_MS);
+        led_red_off();
+    }
+}
+
+static void adjust_max_humidity(int8_t direction) {
+    uint8_t val = storage_get_max_humidity();
+
+    if (direction > 0 && val <= (uint8_t)(100 - HUMIDITY_STEP)) {
+        val += HUMIDITY_STEP;
+    } else if (direction < 0 && val >= HUMIDITY_STEP) {
+        val -= HUMIDITY_STEP;
+    }
+
+    storage_set_max_humidity(val);
+
+    // Red LED is on in set-max-humidity mode.
+    if (direction > 0) {
+        // Increase: red blinks off briefly (off→on)
+        led_red_off();
+        delay(LED_PAUSE_MS);
+        led_red_on();
+    } else {
+        // Decrease: green blinks on briefly (on→off)
+        led_green_on();
+        delay(LED_PAUSE_MS);
+        led_green_off();
     }
 }
 
@@ -263,8 +305,8 @@ static void calibration_heartbeat_reset() {
 
 static void calibration_heartbeat_tick() {
     const uint32_t now = millis();
-    const uint16_t on_ms  = 150;
-    const uint16_t off_ms = 300;
+    const uint16_t on_ms  = LED_RAPID;
+    const uint16_t off_ms = LED_PAUSE_MS;
 
     if (s_calib_heartbeat_ms == 0) {
         s_calib_heartbeat_ms = now;
@@ -335,7 +377,7 @@ void buttons_handle_interaction(bool from_button_wake) {
     uint32_t   last_mode_change_ms = millis();
     uint32_t   deadline_ms         = millis();
 
-    bool    minimal_prompted     = false;
+    bool    humidity_prompted     = false;
 
     while ((millis() - deadline_ms) < MODE_TIMEOUT_MS) {
         ButtonPress presses[BTN_COUNT] = {PRESS_NONE, PRESS_NONE, PRESS_NONE};
@@ -361,7 +403,9 @@ void buttons_handle_interaction(bool from_button_wake) {
         // Unrecognized button combination → brief red flash as feedback
         if (any_press && new_mode == mode) {
             PLAY_PATTERN(BTN_BAD);
-            deadline_ms = millis();           // extend timeout so user can retry
+            deadline_ms         = millis();   // extend timeout so user can retry
+            last_mode_change_ms = millis();   // keep resolve_mode timeout in sync
+            humidity_prompted   = false;      // re-show mode indicator LEDs
             continue;
         }
 
@@ -369,9 +413,16 @@ void buttons_handle_interaction(bool from_button_wake) {
             if (mode == MODE_CALIBRATION) {
                 calibration_heartbeat_reset();
             }
-            if (mode == MODE_SET_MINIMAL_HUMIDITY &&
+            // Clean up LEDs when leaving set-humidity sub-modes
+            if ((mode == MODE_SET_HUMIDITY ||
+                 mode == MODE_SET_MIN_HUMIDITY ||
+                 mode == MODE_SET_MAX_HUMIDITY) &&
+                new_mode != MODE_SET_MIN_HUMIDITY &&
+                new_mode != MODE_SET_MAX_HUMIDITY &&
                 new_mode != MODE_ADD_MIN_HUMIDITY &&
-                new_mode != MODE_LOWER_MIN_HUMIDITY) {
+                new_mode != MODE_LOWER_MIN_HUMIDITY &&
+                new_mode != MODE_ADD_MAX_HUMIDITY &&
+                new_mode != MODE_LOWER_MAX_HUMIDITY) {
                 leds_all_off();
             }
             if (new_mode == MODE_CALIBRATION) {
@@ -380,7 +431,7 @@ void buttons_handle_interaction(bool from_button_wake) {
             mode                 = new_mode;
             last_mode_change_ms  = millis();
             deadline_ms          = millis();   // extend deadline on mode change
-            minimal_prompted     = false;
+            humidity_prompted     = false;
         }
 
         switch (mode) {
@@ -399,8 +450,8 @@ void buttons_handle_interaction(bool from_button_wake) {
                 perform_display_battery();
                 return;
 
-            case MODE_DISPLAY_MINIMAL_HUMIDITY:
-                perform_display_minimal_humidity();
+            case MODE_DISPLAY_HUMIDITY_RANGE:
+                perform_display_humidity_range();
                 return;
 
             case MODE_CALIBRATION:
@@ -416,29 +467,61 @@ void buttons_handle_interaction(bool from_button_wake) {
                 perform_calibrate_wet();
                 return;
 
-            case MODE_SET_MINIMAL_HUMIDITY:
-                if (!minimal_prompted) {
-                    // Both LEDs stay on while in this mode
+            case MODE_SET_HUMIDITY:
+                // Both LEDs on — waiting for long WET or long DRY
+                if (!humidity_prompted) {
                     led_green_on();
                     led_red_on();
-                    minimal_prompted = true;
+                    humidity_prompted = true;
+                }
+                break;
+
+            case MODE_SET_MIN_HUMIDITY:
+                if (!humidity_prompted) {
+                    leds_all_off();
+                    led_green_on();          // Green only → min humidity
+                    humidity_prompted = true;
+                }
+                break;
+
+            case MODE_SET_MAX_HUMIDITY:
+                if (!humidity_prompted) {
+                    leds_all_off();
+                    led_red_on();            // Red only → max humidity
+                    humidity_prompted = true;
                 }
                 break;
 
             case MODE_LOWER_MIN_HUMIDITY:
                 adjust_minimal_humidity(-1);
-                mode                = MODE_SET_MINIMAL_HUMIDITY;
+                mode                = MODE_SET_MIN_HUMIDITY;
                 last_mode_change_ms = millis();
                 deadline_ms         = millis();
-                minimal_prompted    = false;
+                humidity_prompted    = false;
                 break;
 
             case MODE_ADD_MIN_HUMIDITY:
                 adjust_minimal_humidity(+1);
-                mode                = MODE_SET_MINIMAL_HUMIDITY;
+                mode                = MODE_SET_MIN_HUMIDITY;
                 last_mode_change_ms = millis();
                 deadline_ms         = millis();
-                minimal_prompted    = false;
+                humidity_prompted    = false;
+                break;
+
+            case MODE_LOWER_MAX_HUMIDITY:
+                adjust_max_humidity(-1);
+                mode                = MODE_SET_MAX_HUMIDITY;
+                last_mode_change_ms = millis();
+                deadline_ms         = millis();
+                humidity_prompted    = false;
+                break;
+
+            case MODE_ADD_MAX_HUMIDITY:
+                adjust_max_humidity(+1);
+                mode                = MODE_SET_MAX_HUMIDITY;
+                last_mode_change_ms = millis();
+                deadline_ms         = millis();
+                humidity_prompted    = false;
                 break;
 
             default:
