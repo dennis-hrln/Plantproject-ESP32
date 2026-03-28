@@ -22,6 +22,7 @@ class PlantDashboardGui(tk.Tk):
         on_cal_dry: Callable[[], None],
         on_set_min: Callable[[int], None],
         on_set_max: Callable[[int], None],
+        on_set_name: Callable[[str], None],
         on_close: Callable[[], None],
     ) -> None:
         super().__init__()
@@ -37,6 +38,7 @@ class PlantDashboardGui(tk.Tk):
         self._on_cal_dry = on_cal_dry
         self._on_set_min = on_set_min
         self._on_set_max = on_set_max
+        self._on_set_name = on_set_name
         self._on_close = on_close
 
         self.connection_var = tk.StringVar(value="Disconnected")
@@ -44,6 +46,7 @@ class PlantDashboardGui(tk.Tk):
         self.battery_var = tk.StringVar(value="-")
         self.water_ok_var = tk.StringVar(value="-")
         self.timestamp_var = tk.StringVar(value="-")
+        self.plant_name_var = tk.StringVar(value="-")
         self.min_var = tk.StringVar(value="-")
         self.max_var = tk.StringVar(value="-")
         self.last_ack_var = tk.StringVar(value="-")
@@ -62,6 +65,7 @@ class PlantDashboardGui(tk.Tk):
         rows = [
             ("Connection", self.connection_var),
             ("Timestamp", self.timestamp_var),
+            ("Plant", self.plant_name_var),
             ("Humidity", self.humidity_var),
             ("Battery", self.battery_var),
             ("Water OK", self.water_ok_var),
@@ -98,6 +102,11 @@ class PlantDashboardGui(tk.Tk):
         self.max_entry.grid(row=1, column=1, sticky=tk.EW, padx=6)
         ttk.Button(set_frame, text="Set Max", command=self._submit_max).grid(row=1, column=2, padx=4)
 
+        ttk.Label(set_frame, text="Plant Name").grid(row=2, column=0, sticky=tk.W, pady=4)
+        self.name_entry = ttk.Entry(set_frame)
+        self.name_entry.grid(row=2, column=1, sticky=tk.EW, padx=6)
+        ttk.Button(set_frame, text="Set Name", command=self._submit_name).grid(row=2, column=2, padx=4)
+
         set_frame.grid_columnconfigure(1, weight=1)
 
         log_frame = ttk.LabelFrame(root, text="Event Log", padding=10)
@@ -128,6 +137,13 @@ class PlantDashboardGui(tk.Tk):
             return
         self._on_set_max(value)
 
+    def _submit_name(self) -> None:
+        name = self.name_entry.get().strip()
+        if not name:
+            messagebox.showerror("Invalid value", "Plant name must not be empty")
+            return
+        self._on_set_name(name)
+
     def _handle_close(self) -> None:
         self._on_close()
         self.destroy()
@@ -153,6 +169,7 @@ class PlantDashboardGui(tk.Tk):
         if etype == "telemetry":
             data = event.get("data") or {}
             self.timestamp_var.set(str(data.get("ts", "-")))
+            self.plant_name_var.set(str(data.get("plant", "-")))
             self.humidity_var.set(str(data.get("humidity", "-")))
             self.battery_var.set(str(data.get("battery", "-")))
             self.water_ok_var.set(str(data.get("water_ok", "-")))

@@ -34,12 +34,30 @@ Supported Commands from GUI
 - Calibrate Dry
 - Set Min Humidity
 - Set Max Humidity
+- Set Plant Name
 
 MQTT Topics (default)
 - Command publish: plant/cmd
 - Status subscribe: plant/status
 - Telemetry subscribe: plant/telemetry
 - Ack subscribe: plant/ack
+
+Command Payload Examples
+- status
+- water
+- calibrate_wet
+- calibrate_dry
+- set_min:45
+- set_max:70
+- set_name:Office Fern
+
+Receiver Data Persistence
+- The headless receiver stores all incoming events to:
+  host_app/data/events.jsonl
+- Latest snapshots are written to:
+  host_app/data/latest_telemetry.json
+  host_app/data/latest_ack.json
+  host_app/data/latest_status.json
 
 Raspberry Pi service (systemd)
 1. Copy host_app/systemd/plant_receiver.service.example to /etc/systemd/system/plant_receiver.service

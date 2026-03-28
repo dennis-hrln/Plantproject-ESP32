@@ -44,6 +44,7 @@ def main() -> None:
         on_cal_dry=logic.command_calibrate_dry,
         on_set_min=logic.set_min_humidity,
         on_set_max=logic.set_max_humidity,
+        on_set_name=logic.set_plant_name,
         on_close=logic.stop,
     )
     app.mainloop()

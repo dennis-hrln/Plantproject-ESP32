@@ -67,6 +67,9 @@
 #define MQTT_TOPIC_TELEMETRY      "plant/telemetry"
 #define MQTT_TOPIC_ACK            "plant/ack"
 
+#define MQTT_PLANT_NAME           "Stirps"
+#define MQTT_PLANT_NAME_MAX_LEN   32
+
 #define MQTT_RECONNECT_MS         5000
 #define MQTT_COMMAND_WINDOW_MS    3000
 
@@ -344,5 +347,6 @@ static const LedStep PAT_NUM_END[] = {
 #define NVS_KEY_LAST_WATERING       "last_water"
 #define NVS_KEY_BOOT_COUNT          "boot_count"
 #define NVS_KEY_TOTAL_TIME          "total_time"
+#define NVS_KEY_PLANT_NAME          "plant_name"
 
 #endif // CONFIG_H

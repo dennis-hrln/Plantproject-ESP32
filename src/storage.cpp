@@ -69,6 +69,18 @@ void storage_set_max_humidity(uint8_t percent) {
 }
 
 // =============================================================================
+// PLANT NAME
+// =============================================================================
+
+String storage_get_plant_name() {
+    return prefs.getString(NVS_KEY_PLANT_NAME, MQTT_PLANT_NAME);
+}
+
+void storage_set_plant_name(const String &name) {
+    prefs.putString(NVS_KEY_PLANT_NAME, name);
+}
+
+// =============================================================================
 // WATERING TIMESTAMP
 // =============================================================================
 

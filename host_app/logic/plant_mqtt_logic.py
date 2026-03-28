@@ -123,3 +123,10 @@ class PlantMqttLogic:
     def set_max_humidity(self, value: int) -> None:
         value = max(0, min(100, int(value)))
         self._publish_command(f"set_max:{value}")
+
+    def set_plant_name(self, name: str) -> None:
+        cleaned = (name or "").strip()
+        if not cleaned:
+            self._emit({"type": "error", "message": "Plant name must not be empty"})
+            return
+        self._publish_command(f"set_name:{cleaned}")

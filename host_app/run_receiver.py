@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import queue
 import signal
-import sys
 import time
 from pathlib import Path
 from typing import Any, Dict
@@ -59,6 +58,107 @@ def print_event(event: Dict[str, Any]) -> None:
     print(f"[{ts()}] event {event}")
 
 
+def persist_event(event: Dict[str, Any]) -> None:
+    base_dir = Path(__file__).with_name("data")
+    base_dir.mkdir(parents=True, exist_ok=True)
+
+    envelope = {
+        "received_at": time.time(),
+        "event": event,
+    }
+
+    events_path = base_dir / "events.jsonl"
+    with events_path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(envelope, separators=(",", ":")) + "\n")
+
+    etype = event.get("type")
+    if etype in ("telemetry", "ack", "status"):
+        latest_path = base_dir / f"latest_{etype}.json"
+        with latest_path.open("w", encoding="utf-8") as f:
+            json.dump(envelope, f, separators=(",", ":"), ensure_ascii=False)
+
+    if etype == "ack":
+        data = event.get("data")
+        if isinstance(data, dict) and data.get("cmd") == "set_name" and bool(data.get("ok")):
+            new_name = data.get("plant")
+            if isinstance(new_name, str) and new_name:
+                migrate_stored_plant_name(base_dir, new_name)
+
+
+def _replace_plant_name_in_obj(obj: Any, new_name: str) -> Any:
+    if isinstance(obj, dict):
+        updated: Dict[str, Any] = {}
+        for key, value in obj.items():
+            if key == "plant" and isinstance(value, str):
+                updated[key] = new_name
+            else:
+                updated[key] = _replace_plant_name_in_obj(value, new_name)
+        return updated
+    if isinstance(obj, list):
+        return [_replace_plant_name_in_obj(x, new_name) for x in obj]
+    return obj
+
+
+def migrate_stored_plant_name(base_dir: Path, new_name: str) -> None:
+    events_path = base_dir / "events.jsonl"
+    if events_path.exists():
+        rewritten_lines = []
+        with events_path.open("r", encoding="utf-8") as f:
+            for line in f:
+                raw = line.strip()
+                if not raw:
+                    continue
+                try:
+                    item = json.loads(raw)
+                except json.JSONDecodeError:
+                    continue
+
+                item = _replace_plant_name_in_obj(item, new_name)
+
+                event = item.get("event")
+                if isinstance(event, dict):
+                    payload = event.get("payload")
+                    if isinstance(payload, str) and payload.strip().startswith("{"):
+                        try:
+                            payload_obj = json.loads(payload)
+                            payload_obj = _replace_plant_name_in_obj(payload_obj, new_name)
+                            event["payload"] = json.dumps(payload_obj, separators=(",", ":"), ensure_ascii=False)
+                        except json.JSONDecodeError:
+                            pass
+
+                rewritten_lines.append(json.dumps(item, separators=(",", ":"), ensure_ascii=False))
+
+        with events_path.open("w", encoding="utf-8") as f:
+            for line in rewritten_lines:
+                f.write(line + "\n")
+
+    for name in ("latest_telemetry.json", "latest_ack.json", "latest_status.json"):
+        latest_path = base_dir / name
+        if not latest_path.exists():
+            continue
+        try:
+            with latest_path.open("r", encoding="utf-8") as f:
+                item = json.load(f)
+        except json.JSONDecodeError:
+            continue
+
+        item = _replace_plant_name_in_obj(item, new_name)
+
+        event = item.get("event")
+        if isinstance(event, dict):
+            payload = event.get("payload")
+            if isinstance(payload, str) and payload.strip().startswith("{"):
+                try:
+                    payload_obj = json.loads(payload)
+                    payload_obj = _replace_plant_name_in_obj(payload_obj, new_name)
+                    event["payload"] = json.dumps(payload_obj, separators=(",", ":"), ensure_ascii=False)
+                except json.JSONDecodeError:
+                    pass
+
+        with latest_path.open("w", encoding="utf-8") as f:
+            json.dump(item, f, separators=(",", ":"), ensure_ascii=False)
+
+
 def main() -> None:
     events: "queue.Queue[Dict[str, Any]]" = queue.Queue()
     cfg = load_config()
@@ -88,6 +188,7 @@ def main() -> None:
             try:
                 event = events.get(timeout=0.5)
                 print_event(event)
+                persist_event(event)
             except queue.Empty:
                 pass
     finally:

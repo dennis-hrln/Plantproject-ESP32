@@ -88,6 +88,21 @@ uint8_t storage_get_max_humidity();
 void storage_set_max_humidity(uint8_t percent);
 
 // =============================================================================
+// PLANT NAME
+// =============================================================================
+
+/**
+ * Get persisted plant name used in MQTT payloads.
+ * Returns MQTT_PLANT_NAME if not set.
+ */
+String storage_get_plant_name();
+
+/**
+ * Store plant name for MQTT payloads.
+ */
+void storage_set_plant_name(const String &name);
+
+// =============================================================================
 // WATERING TIMESTAMP
 // =============================================================================
 

@@ -13,6 +13,28 @@
 static WiFiClient s_wifi;
 static PubSubClient s_mqtt(s_wifi);
 static uint32_t s_last_reconnect_ms = 0;
+static String s_plant_name = MQTT_PLANT_NAME;
+
+static void normalize_plant_name(String &name) {
+    name.trim();
+    if (name.length() == 0) {
+        name = MQTT_PLANT_NAME;
+    }
+    if (name.length() > MQTT_PLANT_NAME_MAX_LEN) {
+        name = name.substring(0, MQTT_PLANT_NAME_MAX_LEN);
+    }
+
+    for (size_t i = 0; i < name.length(); ++i) {
+        const char c = name.charAt(i);
+        const bool ok = (c >= 'a' && c <= 'z') ||
+                        (c >= 'A' && c <= 'Z') ||
+                        (c >= '0' && c <= '9') ||
+                        c == ' ' || c == '_' || c == '-';
+        if (!ok) {
+            name.setCharAt(i, '_');
+        }
+    }
+}
 
 static void mqtt_publish_status(const char *text) {
     s_mqtt.publish(MQTT_TOPIC_STATUS, text, true);
@@ -26,7 +48,8 @@ static void mqtt_publish_ack(const char *cmd, bool ok, const char *detail) {
     const uint32_t ts = storage_get_persistent_time();
     char msg[192];
     snprintf(msg, sizeof(msg),
-             "{\"ts\":%lu,\"cmd\":\"%s\",\"ok\":%s,\"detail\":\"%s\"}",
+             "{\"plant\":\"%s\",\"ts\":%lu,\"cmd\":\"%s\",\"ok\":%s,\"detail\":\"%s\"}",
+             s_plant_name.c_str(),
              (unsigned long)ts,
              cmd,
              ok ? "true" : "false",
@@ -48,7 +71,8 @@ void mqtt_control_publish_telemetry() {
 
     char msg[192];
     snprintf(msg, sizeof(msg),
-             "{\"ts\":%lu,\"humidity\":%u,\"battery\":%u,\"water_ok\":%s,\"min\":%u,\"max\":%u}",
+             "{\"plant\":\"%s\",\"ts\":%lu,\"humidity\":%u,\"battery\":%u,\"water_ok\":%s,\"min\":%u,\"max\":%u}",
+             s_plant_name.c_str(),
              (unsigned long)ts,
              humidity,
              batt,
@@ -72,8 +96,10 @@ static int parse_int_arg(const String &input, const char *prefix) {
 }
 
 static void handle_command(const String &cmd_raw) {
-    String cmd = cmd_raw;
-    cmd.trim();
+    String raw = cmd_raw;
+    raw.trim();
+
+    String cmd = raw;
     cmd.toLowerCase();
 
     if (cmd == "water") {
@@ -119,6 +145,16 @@ static void handle_command(const String &cmd_raw) {
         if (max_h > 100) max_h = 100;
         storage_set_max_humidity((uint8_t)max_h);
         mqtt_publish_ack("set_max", true, "ok");
+        mqtt_control_publish_telemetry();
+        return;
+    }
+
+    if (cmd.startsWith("set_name:")) {
+        String name = raw.substring(String("set_name:").length());
+        normalize_plant_name(name);
+        s_plant_name = name;
+        storage_set_plant_name(s_plant_name);
+        mqtt_publish_ack("set_name", true, "ok");
         mqtt_control_publish_telemetry();
         return;
     }
@@ -187,13 +223,18 @@ static void mqtt_try_reconnect() {
     s_mqtt.subscribe(MQTT_TOPIC_COMMAND);
     const uint32_t ts = storage_get_persistent_time();
     char msg[96];
-    snprintf(msg, sizeof(msg), "{\"state\":\"online\",\"ts\":%lu}", (unsigned long)ts);
+    snprintf(msg, sizeof(msg), "{\"plant\":\"%s\",\"state\":\"online\",\"ts\":%lu}", s_plant_name.c_str(), (unsigned long)ts);
     mqtt_publish_status(msg);
 }
 
 void mqtt_control_init() {
     s_mqtt.setServer(MQTT_BROKER_HOST, MQTT_BROKER_PORT);
     s_mqtt.setCallback(mqtt_callback);
+
+    String persisted_name = storage_get_plant_name();
+    normalize_plant_name(persisted_name);
+    s_plant_name = persisted_name;
+
     wifi_ensure_connected();
     mqtt_try_reconnect();
 }
