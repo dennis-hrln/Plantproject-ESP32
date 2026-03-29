@@ -51,8 +51,13 @@ class PlantMqttLogic:
         return self._connected
 
     def start(self) -> None:
-        self._client.connect(self._config.broker_host, self._config.broker_port, keepalive=30)
-        self._client.loop_start()
+        try:
+            # Non-blocking connect prevents startup crashes when broker is down.
+            self._client.connect_async(self._config.broker_host, self._config.broker_port, keepalive=30)
+            self._client.loop_start()
+        except Exception as exc:
+            self._connected = False
+            self._emit({"type": "error", "message": f"MQTT start failed: {exc}"})
 
     def stop(self) -> None:
         self._stop_event.set()
