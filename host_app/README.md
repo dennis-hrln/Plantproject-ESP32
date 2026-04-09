@@ -15,6 +15,18 @@ Setup
 2. Install dependencies:
    pip install -r requirements.txt
 3. Copy host_config.example.json to host_config.json and adjust values.
+4. Optional (recommended for secrets): set environment variables instead of storing credentials in JSON.
+
+Environment variables (override host_config.json values)
+- PLANT_MQTT_BROKER_HOST
+- PLANT_MQTT_BROKER_PORT
+- PLANT_MQTT_USERNAME
+- PLANT_MQTT_PASSWORD
+- PLANT_MQTT_CLIENT_ID
+- PLANT_MQTT_TOPIC_COMMAND
+- PLANT_MQTT_TOPIC_STATUS
+- PLANT_MQTT_TOPIC_TELEMETRY
+- PLANT_MQTT_TOPIC_ACK
 
 Run
 - From this folder:
@@ -56,8 +68,11 @@ Plant Name Behavior
 - Receiver side: after a successful set_name ACK, historical stored data files are rewritten so existing records use the new plant name.
 
 Receiver Data Persistence
-- The headless receiver stores all incoming events to:
+- Events and command-related messages (connection, errors, status, ACK, etc.) are stored in:
   host_app/data/events.jsonl
+- Plant telemetry data (plant name, humidity, timestamp, battery, thresholds, etc.) is stored separately per plant in:
+  host_app/data/plants/<plant_name>.json
+  (filename uses a sanitized form of the plant name)
 - Latest snapshots are written to:
   host_app/data/latest_telemetry.json
   host_app/data/latest_ack.json

@@ -1,0 +1,55 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "PlatformIO: Test (esp32c3)",
+			"type": "shell",
+			"command": "C:\\Users\\denni\\.platformio\\penv\\Scripts\\platformio.exe",
+			"args": [
+				"test",
+				"--environment",
+				"esp32c3"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "PlatformIO: Test Stepper (esp32c3)",
+			"type": "shell",
+			"command": "C:\\Users\\denni\\.platformio\\penv\\Scripts\\platformio.exe",
+			"args": [
+				"test",
+				"--environment",
+				"esp32c3",
+				"--filter",
+				"stepper_motor_test"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "PlatformIO: Test Hardware (esp32c3)",
+			"type": "shell",
+			"command": "C:\\Users\\denni\\.platformio\\penv\\Scripts\\platformio.exe",
+			"args": [
+				"test",
+				"--environment",
+				"esp32c3",
+				"--filter",
+				"hardware_test"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "PlatformIO: Upload Stepper Motor Test",
+			"type": "shell",
+			"command": "C:\\Users\\denni\\.platformio\\penv\\Scripts\\platformio.exe",
+			"args": [
+				"run",
+				"--target",
+				"upload",
+				"--environment",
+				"stepper_motor_test"
+			],
+			"isBackground": false
+		}
+	]
+}

@@ -205,6 +205,9 @@ The hardware test firmware (`test/hardware_test.cpp`) uses additional patterns f
 
 Edit `include/config.h` to customize:
 
+- Sensitive values are loaded from `include/secrets.h` (local, ignored by git).
+- Create it by copying `include/secrets.example.h` and filling in your Wi-Fi/MQTT credentials.
+
 ### Watering behavior
 
 The system uses a **min/max humidity window** with a pulse-pump loop:

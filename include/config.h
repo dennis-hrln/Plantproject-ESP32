@@ -10,6 +10,17 @@
 
 #include <Arduino.h>
 
+#if __has_include("secrets.h")
+#include "secrets.h"
+#else
+#define SECRET_WIFI_SSID            "YOUR_WIFI_SSID"
+#define SECRET_WIFI_PASSWORD        "YOUR_WIFI_PASSWORD"
+#define SECRET_MQTT_BROKER_HOST     "192.168.1.10"
+#define SECRET_MQTT_BROKER_PORT     1883
+#define SECRET_MQTT_BROKER_USER     ""
+#define SECRET_MQTT_BROKER_PASSWORD ""
+#endif
+
 // =============================================================================
 // HARDWARE PIN DEFINITIONS - ESP32-C3 Supermini (HW-466AB)
 // =============================================================================
@@ -35,7 +46,7 @@
 #define ACTUATOR_TYPE_STEPPER    1
 
 // Select active actuator here.
-#define ACTUATOR_TYPE            ACTUATOR_TYPE_PUMP
+#define ACTUATOR_TYPE            ACTUATOR_TYPE_STEPPER
 
 // =============================================================================
 // CONTROL SOURCE SELECTION
@@ -48,18 +59,18 @@
 #define CONTROL_MODE_BOTH         2
 
 // Select control source here.
-#define CONTROL_MODE              CONTROL_MODE_BUTTONS
+#define CONTROL_MODE              CONTROL_MODE_BOTH
 
 // =============================================================================
 // MQTT SETTINGS (used when CONTROL_MODE includes MQTT)
 // =============================================================================
-#define MQTT_WIFI_SSID            "YOUR_WIFI_SSID"
-#define MQTT_WIFI_PASSWORD        "YOUR_WIFI_PASSWORD"
+#define MQTT_WIFI_SSID            SECRET_WIFI_SSID
+#define MQTT_WIFI_PASSWORD        SECRET_WIFI_PASSWORD
 
-#define MQTT_BROKER_HOST          "192.168.1.10"
-#define MQTT_BROKER_PORT          1883
-#define MQTT_BROKER_USER          ""
-#define MQTT_BROKER_PASSWORD      ""
+#define MQTT_BROKER_HOST          SECRET_MQTT_BROKER_HOST
+#define MQTT_BROKER_PORT          SECRET_MQTT_BROKER_PORT
+#define MQTT_BROKER_USER          SECRET_MQTT_BROKER_USER
+#define MQTT_BROKER_PASSWORD      SECRET_MQTT_BROKER_PASSWORD
 
 #define MQTT_CLIENT_ID            "plant-esp32c3"
 #define MQTT_TOPIC_COMMAND        "plant/cmd"
@@ -146,8 +157,8 @@
 // WATERING PARAMETERS
 // =============================================================================
 
-#define DEFAULT_MINIMAL_HUMIDITY    40      // Start watering below this % (0-100)
-#define DEFAULT_MAX_HUMIDITY        70      // Stop watering at this % (0-100)
+#define DEFAULT_MINIMAL_HUMIDITY    30      // Start watering below this % (0-100)
+#define DEFAULT_MAX_HUMIDITY        80      // Stop watering at this % (0-100)
 
 #define PUMP_RUN_DURATION_MS        3000    // Pump on time per pulse (3 sec)
 #define PUMP_MAX_DURATION_MS        10000   // Absolute safety limit per pulse (10 sec)
