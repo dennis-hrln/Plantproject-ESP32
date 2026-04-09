@@ -81,6 +81,35 @@ void storage_set_plant_name(const String &name) {
 }
 
 // =============================================================================
+// RUNTIME POWER MODE
+// =============================================================================
+
+bool storage_get_deep_sleep_enabled() {
+#if DEBUG_NO_SLEEP
+    const bool default_enabled = false;
+#else
+    const bool default_enabled = true;
+#endif
+    return prefs.getBool(NVS_KEY_DEEP_SLEEP_ENABLED, default_enabled);
+}
+
+void storage_set_deep_sleep_enabled(bool enabled) {
+    prefs.putBool(NVS_KEY_DEEP_SLEEP_ENABLED, enabled);
+}
+
+// =============================================================================
+// MQTT COMMAND DEDUPLICATION
+// =============================================================================
+
+String storage_get_last_command_id() {
+    return prefs.getString(NVS_KEY_LAST_CMD_ID, "");
+}
+
+void storage_set_last_command_id(const String &cmd_id) {
+    prefs.putString(NVS_KEY_LAST_CMD_ID, cmd_id);
+}
+
+// =============================================================================
 // WATERING TIMESTAMP
 // =============================================================================
 

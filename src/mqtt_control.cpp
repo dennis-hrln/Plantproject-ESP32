@@ -14,6 +14,12 @@ static WiFiClient s_wifi;
 static PubSubClient s_mqtt(s_wifi);
 static uint32_t s_last_reconnect_ms = 0;
 static String s_plant_name = MQTT_PLANT_NAME;
+static String s_last_command_id;
+
+typedef struct {
+    String command;
+    String command_id;
+} ParsedCommand;
 
 static void normalize_plant_name(String &name) {
     name.trim();
@@ -40,17 +46,18 @@ static void mqtt_publish_status(const char *text) {
     s_mqtt.publish(MQTT_TOPIC_STATUS, text, true);
 }
 
-static void mqtt_publish_ack(const char *cmd, bool ok, const char *detail) {
+static void mqtt_publish_ack(const char *cmd, bool ok, const char *detail, const String &cmd_id = "") {
     if (!s_mqtt.connected()) {
         return;
     }
 
     const uint32_t ts = storage_get_persistent_time();
-    char msg[192];
+    char msg[240];
     snprintf(msg, sizeof(msg),
-             "{\"plant\":\"%s\",\"ts\":%lu,\"cmd\":\"%s\",\"ok\":%s,\"detail\":\"%s\"}",
+             "{\"plant\":\"%s\",\"ts\":%lu,\"id\":\"%s\",\"cmd\":\"%s\",\"ok\":%s,\"detail\":\"%s\"}",
              s_plant_name.c_str(),
              (unsigned long)ts,
+             cmd_id.c_str(),
              cmd,
              ok ? "true" : "false",
              detail);
@@ -68,18 +75,71 @@ void mqtt_control_publish_telemetry() {
     const bool water_ok = water_level_ok();
     const uint8_t min_h = storage_get_minimal_humidity();
     const uint8_t max_h = storage_get_max_humidity();
+    const bool deep_sleep_enabled = storage_get_deep_sleep_enabled();
 
-    char msg[192];
+    char msg[224];
     snprintf(msg, sizeof(msg),
-             "{\"plant\":\"%s\",\"ts\":%lu,\"humidity\":%u,\"battery\":%u,\"water_ok\":%s,\"min\":%u,\"max\":%u}",
+             "{\"plant\":\"%s\",\"ts\":%lu,\"humidity\":%u,\"battery\":%u,\"water_ok\":%s,\"min\":%u,\"max\":%u,\"deep_sleep\":%s}",
              s_plant_name.c_str(),
              (unsigned long)ts,
              humidity,
              batt,
              water_ok ? "true" : "false",
              min_h,
-             max_h);
+             max_h,
+             deep_sleep_enabled ? "true" : "false");
     s_mqtt.publish(MQTT_TOPIC_TELEMETRY, msg, false);
+}
+
+static bool extract_json_string_field(const String &json, const char *key, String &out) {
+    const String pattern = String("\"") + key + "\"";
+    int key_pos = json.indexOf(pattern);
+    if (key_pos < 0) {
+        return false;
+    }
+
+    int colon_pos = json.indexOf(':', key_pos + pattern.length());
+    if (colon_pos < 0) {
+        return false;
+    }
+
+    int first_quote = json.indexOf('"', colon_pos + 1);
+    if (first_quote < 0) {
+        return false;
+    }
+
+    int second_quote = json.indexOf('"', first_quote + 1);
+    if (second_quote < 0) {
+        return false;
+    }
+
+    out = json.substring(first_quote + 1, second_quote);
+    return true;
+}
+
+static ParsedCommand parse_command(const String &raw_payload) {
+    ParsedCommand parsed;
+    parsed.command = raw_payload;
+    parsed.command_id = "";
+    parsed.command.trim();
+
+    if (!parsed.command.startsWith("{")) {
+        return parsed;
+    }
+
+    String command_from_json;
+    if (extract_json_string_field(parsed.command, "cmd", command_from_json)) {
+        parsed.command = command_from_json;
+        parsed.command.trim();
+    }
+
+    String id_from_json;
+    if (extract_json_string_field(raw_payload, "id", id_from_json)) {
+        parsed.command_id = id_from_json;
+        parsed.command_id.trim();
+    }
+
+    return parsed;
 }
 
 static int parse_int_arg(const String &input, const char *prefix) {
@@ -95,38 +155,96 @@ static int parse_int_arg(const String &input, const char *prefix) {
     return value.toInt();
 }
 
-static void handle_command(const String &cmd_raw) {
-    String raw = cmd_raw;
+static void handle_command(const ParsedCommand &parsed_cmd) {
+    String raw = parsed_cmd.command;
     raw.trim();
 
     String cmd = raw;
     cmd.toLowerCase();
 
+    if (parsed_cmd.command_id.length() > 0 && parsed_cmd.command_id == s_last_command_id) {
+        mqtt_publish_ack("duplicate", true, "already_processed", parsed_cmd.command_id);
+        return;
+    }
+
+    auto mark_processed = [&](void) {
+        if (parsed_cmd.command_id.length() == 0) {
+            return;
+        }
+        s_last_command_id = parsed_cmd.command_id;
+        storage_set_last_command_id(s_last_command_id);
+    };
+
     if (cmd == "water") {
         WateringResult r = watering_manual(true);
         if (r == WATER_OK || r == WATER_PARTIAL) {
-            mqtt_publish_ack("water", true, "watered");
+            mqtt_publish_ack("water", true, "watered", parsed_cmd.command_id);
         } else if (r == WATER_BATTERY_LOW) {
-            mqtt_publish_ack("water", false, "battery_low");
+            mqtt_publish_ack("water", false, "battery_low", parsed_cmd.command_id);
         } else if (r == WATER_RESERVOIR_LOW) {
-            mqtt_publish_ack("water", false, "reservoir_low");
+            mqtt_publish_ack("water", false, "reservoir_low", parsed_cmd.command_id);
         } else {
-            mqtt_publish_ack("water", false, "watering_failed");
+            mqtt_publish_ack("water", false, "watering_failed", parsed_cmd.command_id);
         }
+        mark_processed();
         mqtt_control_publish_telemetry();
         return;
     }
 
     if (cmd == "calibrate_wet") {
         sensor_calibrate_wet();
-        mqtt_publish_ack("calibrate_wet", true, "ok");
+        mqtt_publish_ack("calibrate_wet", true, "ok", parsed_cmd.command_id);
+        mark_processed();
         mqtt_control_publish_telemetry();
         return;
     }
 
     if (cmd == "calibrate_dry") {
         sensor_calibrate_dry();
-        mqtt_publish_ack("calibrate_dry", true, "ok");
+        mqtt_publish_ack("calibrate_dry", true, "ok", parsed_cmd.command_id);
+        mark_processed();
+        mqtt_control_publish_telemetry();
+        return;
+    }
+
+    if (cmd == "toggle_sleep") {
+        const bool new_state = !storage_get_deep_sleep_enabled();
+        storage_set_deep_sleep_enabled(new_state);
+        mqtt_publish_ack("set_sleep", true, new_state ? "on" : "off", parsed_cmd.command_id);
+        mark_processed();
+        mqtt_control_publish_telemetry();
+        return;
+    }
+
+    if (cmd == "sleep_status") {
+        const bool state = storage_get_deep_sleep_enabled();
+        mqtt_publish_ack("set_sleep", true, state ? "on" : "off", parsed_cmd.command_id);
+        mark_processed();
+        mqtt_control_publish_telemetry();
+        return;
+    }
+
+    if (cmd.startsWith("set_sleep:")) {
+        bool new_state = storage_get_deep_sleep_enabled();
+        bool known = true;
+        const String value = cmd.substring(String("set_sleep:").length());
+        if (value == "on" || value == "1" || value == "true") {
+            new_state = true;
+        } else if (value == "off" || value == "0" || value == "false") {
+            new_state = false;
+        } else {
+            known = false;
+        }
+
+        if (!known) {
+            mqtt_publish_ack("set_sleep", false, "invalid_value", parsed_cmd.command_id);
+            mark_processed();
+            return;
+        }
+
+        storage_set_deep_sleep_enabled(new_state);
+        mqtt_publish_ack("set_sleep", true, new_state ? "on" : "off", parsed_cmd.command_id);
+        mark_processed();
         mqtt_control_publish_telemetry();
         return;
     }
@@ -135,7 +253,8 @@ static void handle_command(const String &cmd_raw) {
     if (min_h >= 0) {
         if (min_h > 100) min_h = 100;
         storage_set_minimal_humidity((uint8_t)min_h);
-        mqtt_publish_ack("set_min", true, "ok");
+        mqtt_publish_ack("set_min", true, "ok", parsed_cmd.command_id);
+        mark_processed();
         mqtt_control_publish_telemetry();
         return;
     }
@@ -144,7 +263,8 @@ static void handle_command(const String &cmd_raw) {
     if (max_h >= 0) {
         if (max_h > 100) max_h = 100;
         storage_set_max_humidity((uint8_t)max_h);
-        mqtt_publish_ack("set_max", true, "ok");
+        mqtt_publish_ack("set_max", true, "ok", parsed_cmd.command_id);
+        mark_processed();
         mqtt_control_publish_telemetry();
         return;
     }
@@ -154,28 +274,32 @@ static void handle_command(const String &cmd_raw) {
         normalize_plant_name(name);
         s_plant_name = name;
         storage_set_plant_name(s_plant_name);
-        mqtt_publish_ack("set_name", true, "ok");
+        mqtt_publish_ack("set_name", true, "ok", parsed_cmd.command_id);
+        mark_processed();
         mqtt_control_publish_telemetry();
         return;
     }
 
     if (cmd == "status") {
         mqtt_control_publish_telemetry();
-        mqtt_publish_ack("status", true, "ok");
+        mqtt_publish_ack("status", true, "ok", parsed_cmd.command_id);
+        mark_processed();
         return;
     }
 
-    mqtt_publish_ack("unknown", false, "unknown_command");
+    mqtt_publish_ack("unknown", false, "unknown_command", parsed_cmd.command_id);
+    mark_processed();
 }
 
 static void mqtt_callback(char *topic, uint8_t *payload, unsigned int length) {
     (void)topic;
-    String cmd;
-    cmd.reserve(length);
+    String raw_payload;
+    raw_payload.reserve(length);
     for (unsigned int i = 0; i < length; ++i) {
-        cmd += (char)payload[i];
+        raw_payload += (char)payload[i];
     }
-    handle_command(cmd);
+    ParsedCommand parsed = parse_command(raw_payload);
+    handle_command(parsed);
 }
 
 static void wifi_ensure_connected() {
@@ -222,8 +346,12 @@ static void mqtt_try_reconnect() {
 
     s_mqtt.subscribe(MQTT_TOPIC_COMMAND);
     const uint32_t ts = storage_get_persistent_time();
-    char msg[96];
-    snprintf(msg, sizeof(msg), "{\"plant\":\"%s\",\"state\":\"online\",\"ts\":%lu}", s_plant_name.c_str(), (unsigned long)ts);
+    const bool deep_sleep_enabled = storage_get_deep_sleep_enabled();
+    char msg[128];
+    snprintf(msg, sizeof(msg), "{\"plant\":\"%s\",\"state\":\"online\",\"ts\":%lu,\"deep_sleep\":%s}",
+             s_plant_name.c_str(),
+             (unsigned long)ts,
+             deep_sleep_enabled ? "true" : "false");
     mqtt_publish_status(msg);
 }
 
@@ -234,6 +362,7 @@ void mqtt_control_init() {
     String persisted_name = storage_get_plant_name();
     normalize_plant_name(persisted_name);
     s_plant_name = persisted_name;
+    s_last_command_id = storage_get_last_command_id();
 
     wifi_ensure_connected();
     mqtt_try_reconnect();

@@ -174,7 +174,11 @@
 
 // Temporary debug: keep device awake to test buttons
 // Set to 1 to disable deep sleep and poll buttons in loop()
-#define DEBUG_NO_SLEEP           0
+//////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////
+//CHANGE THISSSSSSSSSSSSSSSSSSS to 0 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#define DEBUG_NO_SLEEP           1
 
 // How often to wake and check soil moisture (in seconds)
 #define MEASUREMENT_INTERVAL_SEC    (1 * 60 * 60)   // 1 hour
@@ -359,5 +363,7 @@ static const LedStep PAT_NUM_END[] = {
 #define NVS_KEY_BOOT_COUNT          "boot_count"
 #define NVS_KEY_TOTAL_TIME          "total_time"
 #define NVS_KEY_PLANT_NAME          "plant_name"
+#define NVS_KEY_DEEP_SLEEP_ENABLED  "deep_sleep"
+#define NVS_KEY_LAST_CMD_ID         "last_cmd_id"
 
 #endif // CONFIG_H

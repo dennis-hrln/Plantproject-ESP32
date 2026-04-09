@@ -20,6 +20,7 @@ class PlantDashboardGui(tk.Tk):
         on_water: Callable[[], None],
         on_cal_wet: Callable[[], None],
         on_cal_dry: Callable[[], None],
+        on_toggle_sleep: Callable[[], None],
         on_set_min: Callable[[int], None],
         on_set_max: Callable[[int], None],
         on_set_name: Callable[[str], None],
@@ -36,6 +37,7 @@ class PlantDashboardGui(tk.Tk):
         self._on_water = on_water
         self._on_cal_wet = on_cal_wet
         self._on_cal_dry = on_cal_dry
+        self._on_toggle_sleep = on_toggle_sleep
         self._on_set_min = on_set_min
         self._on_set_max = on_set_max
         self._on_set_name = on_set_name
@@ -49,7 +51,9 @@ class PlantDashboardGui(tk.Tk):
         self.plant_name_var = tk.StringVar(value="-")
         self.min_var = tk.StringVar(value="-")
         self.max_var = tk.StringVar(value="-")
+        self.deep_sleep_var = tk.StringVar(value="-")
         self.last_ack_var = tk.StringVar(value="-")
+        self.deep_sleep_btn_var = tk.StringVar(value="Deep Sleep: unknown")
 
         self._build_ui()
         self.protocol("WM_DELETE_WINDOW", self._handle_close)
@@ -71,6 +75,7 @@ class PlantDashboardGui(tk.Tk):
             ("Water OK", self.water_ok_var),
             ("Min", self.min_var),
             ("Max", self.max_var),
+            ("Deep Sleep", self.deep_sleep_var),
             ("Last ACK", self.last_ack_var),
         ]
 
@@ -85,6 +90,7 @@ class PlantDashboardGui(tk.Tk):
         ttk.Button(cmd_frame, text="Water Now", command=self._on_water).grid(row=0, column=1, padx=4, pady=4, sticky=tk.EW)
         ttk.Button(cmd_frame, text="Calibrate Wet", command=self._on_cal_wet).grid(row=1, column=0, padx=4, pady=4, sticky=tk.EW)
         ttk.Button(cmd_frame, text="Calibrate Dry", command=self._on_cal_dry).grid(row=1, column=1, padx=4, pady=4, sticky=tk.EW)
+        ttk.Button(cmd_frame, textvariable=self.deep_sleep_btn_var, command=self._on_toggle_sleep).grid(row=2, column=0, columnspan=2, padx=4, pady=4, sticky=tk.EW)
 
         for col in range(2):
             cmd_frame.grid_columnconfigure(col, weight=1)
@@ -161,6 +167,11 @@ class PlantDashboardGui(tk.Tk):
     def _handle_event(self, event: Dict) -> None:
         etype = event.get("type", "unknown")
 
+        def _apply_deep_sleep(value) -> None:
+            text = "ON" if bool(value) else "OFF"
+            self.deep_sleep_var.set(text)
+            self.deep_sleep_btn_var.set(f"Deep Sleep: {text} (toggle)")
+
         if etype == "connection":
             self.connection_var.set("Connected" if event.get("connected") else "Disconnected")
             self._append_log(f"connection: {self.connection_var.get()} (rc={event.get('rc')})")
@@ -175,6 +186,8 @@ class PlantDashboardGui(tk.Tk):
             self.water_ok_var.set(str(data.get("water_ok", "-")))
             self.min_var.set(str(data.get("min", "-")))
             self.max_var.set(str(data.get("max", "-")))
+            if "deep_sleep" in data:
+                _apply_deep_sleep(data.get("deep_sleep"))
             self._append_log("telemetry updated")
             return
 
@@ -182,6 +195,10 @@ class PlantDashboardGui(tk.Tk):
             data = event.get("data") or {}
             ack_line = f"{data.get('cmd', '?')} ok={data.get('ok', False)} detail={data.get('detail', '')}"
             self.last_ack_var.set(ack_line)
+            if data.get("cmd") == "set_sleep":
+                detail = str(data.get("detail", "")).lower()
+                if detail in ("on", "off"):
+                    _apply_deep_sleep(detail == "on")
             self._append_log("ack: " + ack_line)
             return
 

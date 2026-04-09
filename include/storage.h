@@ -103,6 +103,36 @@ String storage_get_plant_name();
 void storage_set_plant_name(const String &name);
 
 // =============================================================================
+// RUNTIME POWER MODE
+// =============================================================================
+
+/**
+ * Get whether deep sleep is enabled at runtime.
+ * Returns persisted value or a build-dependent default.
+ */
+bool storage_get_deep_sleep_enabled();
+
+/**
+ * Persist whether deep sleep should be enabled at runtime.
+ */
+void storage_set_deep_sleep_enabled(bool enabled);
+
+// =============================================================================
+// MQTT COMMAND DEDUPLICATION
+// =============================================================================
+
+/**
+ * Get last processed MQTT command id.
+ * Returns empty string if none has been processed yet.
+ */
+String storage_get_last_command_id();
+
+/**
+ * Persist last processed MQTT command id.
+ */
+void storage_set_last_command_id(const String &cmd_id);
+
+// =============================================================================
 // WATERING TIMESTAMP
 // =============================================================================
 

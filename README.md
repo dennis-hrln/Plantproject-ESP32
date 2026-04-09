@@ -208,6 +208,116 @@ Edit `include/config.h` to customize:
 - Sensitive values are loaded from `include/secrets.h` (local, ignored by git).
 - Create it by copying `include/secrets.example.h` and filling in your Wi-Fi/MQTT credentials.
 
+## MQTT Broker Setup On A New PC (Windows or Raspberry Pi)
+
+Use this checklist when you reinstall or move Mosquitto to a new machine.
+
+### 1) Pick and keep a stable broker IP
+
+- Give the broker machine a stable LAN IP (DHCP reservation/static IP).
+- Update these to the same IP:
+   - `include/secrets.h` (`SECRET_MQTT_BROKER_HOST`)
+   - `host_app/host_config.json` (`broker_host`) or corresponding env var
+
+### 2) Install Mosquitto
+
+#### Windows
+
+Install Mosquitto from https://mosquitto.org/download/.
+
+#### Raspberry Pi (Debian-based)
+
+```bash
+sudo apt update
+sudo apt install -y mosquitto mosquitto-clients
+```
+
+### 3) Create username/password file
+
+Use the same credentials you configured in `include/secrets.h` and `host_app/host_config.json`.
+
+#### Windows (run in Administrator CMD/PowerShell)
+
+```cmd
+mkdir C:\mqtt
+"C:\Program Files\Mosquitto\mosquitto_passwd.exe" -c -b C:\mqtt\passwd testname testpassword
+```
+
+Note: use `-c` only on first creation. Later updates must omit `-c`.
+
+#### Raspberry Pi
+
+```bash
+sudo mkdir -p /etc/mosquitto
+sudo mosquitto_passwd -c -b /etc/mosquitto/passwd testname testpassword
+```
+
+### 4) Configure `mosquitto.conf`
+
+Add these active (non-commented) lines:
+
+```conf
+listener 1883 0.0.0.0
+allow_anonymous false
+password_file C:\mqtt\passwd
+```
+
+On Linux/Raspberry Pi, use:
+
+```conf
+listener 1883 0.0.0.0
+allow_anonymous false
+password_file /etc/mosquitto/passwd
+```
+
+### 5) Restart broker service
+
+#### Windows (Administrator terminal)
+
+```cmd
+net stop mosquitto
+net start mosquitto
+```
+
+#### Raspberry Pi
+
+```bash
+sudo systemctl restart mosquitto
+sudo systemctl enable mosquitto
+```
+
+### 6) Open firewall/network for TCP 1883
+
+#### Windows firewall rule (Administrator PowerShell)
+
+```powershell
+New-NetFirewallRule -DisplayName "Mosquitto MQTT 1883" -Direction Inbound -Protocol TCP -LocalPort 1883 -Action Allow
+```
+
+#### Raspberry Pi (if UFW enabled)
+
+```bash
+sudo ufw allow 1883/tcp
+```
+
+### 7) Verify from another machine
+
+From your laptop/host app machine:
+
+```powershell
+Test-NetConnection <BROKER_IP> -Port 1883
+```
+
+Expected: `TcpTestSucceeded : True`
+
+### 8) If it still fails
+
+- Check listener bind: `netstat -ano | findstr :1883` (Windows) or `ss -ltnp | grep 1883` (Linux)
+- If it shows `127.0.0.1:1883`, broker is localhost-only (listener config not active)
+- Verify service is using the intended config file
+- Ensure ESP32 and broker are on a network that allows device-to-device traffic
+- Guest Wi-Fi often isolates clients; use normal LAN/Wi-Fi or disable isolation
+
 ### Watering behavior
 
 The system uses a **min/max humidity window** with a pulse-pump loop:

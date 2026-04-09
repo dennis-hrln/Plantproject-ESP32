@@ -441,6 +441,8 @@ void setup() {
     mqtt_control_process_for(MQTT_COMMAND_WINDOW_MS);
     mqtt_control_publish_telemetry();
 #endif
+
+    const bool deep_sleep_enabled = storage_get_deep_sleep_enabled();
     
     // All done, go to deep sleep
     #ifdef DEBUG_SERIAL
@@ -451,29 +453,27 @@ void setup() {
     Serial.flush();
     #endif
     
-    #if DEBUG_NO_SLEEP
-    // Stay awake for button testing
-    return;
-    #else
+    if (!deep_sleep_enabled) {
+        return;
+    }
+
     // Use shorter alert interval if water reservoir or battery needs attention.
     // Reuse the result from show_alerts() to avoid redundant sensor reads.
     enter_deep_sleep(alert_needs_short_sleep ? ALERT_INTERVAL_SEC 
-                                              : MEASUREMENT_INTERVAL_SEC);
-    #endif
+                                             : MEASUREMENT_INTERVAL_SEC);
 }
 
 void loop() {
-    #if DEBUG_NO_SLEEP
-    // Poll buttons while awake for troubleshooting.
-    // buttons_handle_interaction() blocks for up to MODE_TIMEOUT_MS.
+    if (storage_get_deep_sleep_enabled()) {
+        enter_deep_sleep();
+    }
+
+    // Poll interfaces while deep sleep is disabled by runtime config.
     #if CONTROL_HAS_MQTT
     mqtt_control_process();
     #endif
     #if CONTROL_HAS_BUTTONS
     buttons_handle_interaction();
     #endif
-    #else
-    // This should never execute because we enter deep sleep in setup()
-    enter_deep_sleep();
-    #endif
+    delay(10);
 }

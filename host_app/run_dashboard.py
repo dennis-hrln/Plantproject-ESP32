@@ -51,6 +51,7 @@ def main() -> None:
     cfg = load_config()
     logic = PlantMqttLogic(cfg, on_event=events.put)
     logic.start()
+    logic.request_deep_sleep_status()
 
     app = PlantDashboardGui(
         event_queue=events,
@@ -58,6 +59,7 @@ def main() -> None:
         on_water=logic.command_water,
         on_cal_wet=logic.command_calibrate_wet,
         on_cal_dry=logic.command_calibrate_dry,
+        on_toggle_sleep=logic.command_toggle_deep_sleep,
         on_set_min=logic.set_min_humidity,
         on_set_max=logic.set_max_humidity,
         on_set_name=logic.set_plant_name,
