@@ -9,6 +9,8 @@
 #include "battery.h"
 #include "storage.h"
 #include "water_level.h"
+#include "leds.h"
+#include "mqtt_diag.h"
 
 static WiFiClient s_wifi;
 static PubSubClient s_mqtt(s_wifi);
@@ -307,6 +309,10 @@ static void wifi_ensure_connected() {
         return;
     }
 
+#ifdef DEBUG_SERIAL
+    Serial.println("[MQTT] WiFi connecting...");
+#endif
+    mqtt_diag_wifi_connect_start();
     WiFi.mode(WIFI_STA);
     WiFi.begin(MQTT_WIFI_SSID, MQTT_WIFI_PASSWORD);
 
@@ -314,6 +320,22 @@ static void wifi_ensure_connected() {
     while (WiFi.status() != WL_CONNECTED && (millis() - start_ms) < 15000UL) {
         delay(250);
         yield();
+    }
+
+#ifdef DEBUG_SERIAL
+    if (WiFi.status() == WL_CONNECTED) {
+        Serial.print("[MQTT] WiFi connected, IP=");
+        Serial.println(WiFi.localIP());
+    } else {
+        Serial.print("[MQTT] WiFi connect timeout, status=");
+        Serial.println((int)WiFi.status());
+    }
+#endif
+    if (WiFi.status() == WL_CONNECTED) {
+        mqtt_diag_wifi_connect_ok();
+    } else {
+        mqtt_diag_wifi_connect_fail();
+        mqtt_diag_wifi_status_code((int)WiFi.status());
     }
 }
 
@@ -330,6 +352,9 @@ static void mqtt_try_reconnect() {
 
     wifi_ensure_connected();
     if (WiFi.status() != WL_CONNECTED) {
+#ifdef DEBUG_SERIAL
+        Serial.println("[MQTT] Skip broker reconnect: WiFi not connected");
+#endif
         return;
     }
 
@@ -341,10 +366,20 @@ static void mqtt_try_reconnect() {
     }
 
     if (!ok) {
+#ifdef DEBUG_SERIAL
+        Serial.print("[MQTT] Broker connect failed, state=");
+        Serial.println(s_mqtt.state());
+#endif
+        mqtt_diag_mqtt_connect_fail();
         return;
     }
 
     s_mqtt.subscribe(MQTT_TOPIC_COMMAND);
+#ifdef DEBUG_SERIAL
+    Serial.print("[MQTT] Broker connected, subscribed topic=");
+    Serial.println(MQTT_TOPIC_COMMAND);
+#endif
+    mqtt_diag_mqtt_connect_ok();
     const uint32_t ts = storage_get_persistent_time();
     const bool deep_sleep_enabled = storage_get_deep_sleep_enabled();
     char msg[128];

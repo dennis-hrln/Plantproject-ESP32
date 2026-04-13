@@ -2,6 +2,21 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
+			"label": "PlatformIO: Build (esp32c3)",
+			"type": "shell",
+			"command": "C:\\Users\\denni\\.platformio\\penv\\Scripts\\platformio.exe",
+			"args": [
+				"run",
+				"--environment",
+				"esp32c3"
+			],
+			"isBackground": false,
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			}
+		},
+		{
 			"label": "PlatformIO: Test (esp32c3)",
 			"type": "shell",
 			"command": "C:\\Users\\denni\\.platformio\\penv\\Scripts\\platformio.exe",
@@ -9,6 +24,76 @@
 				"test",
 				"--environment",
 				"esp32c3"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "PlatformIO: Build Hardware Test (esp32c3)",
+			"type": "shell",
+			"command": "C:\\Users\\denni\\.platformio\\penv\\Scripts\\platformio.exe",
+			"args": [
+				"run",
+				"--environment",
+				"hardware_test"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "PlatformIO: Build Serial Test (esp32c3)",
+			"type": "shell",
+			"command": "C:\\Users\\denni\\.platformio\\penv\\Scripts\\platformio.exe",
+			"args": [
+				"run",
+				"--environment",
+				"serial_test"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "PlatformIO: Build Stepper Motor Test",
+			"type": "shell",
+			"command": "C:\\Users\\denni\\.platformio\\penv\\Scripts\\platformio.exe",
+			"args": [
+				"run",
+				"--environment",
+				"stepper_motor_test"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "PlatformIO: Build WiFi Connect Test",
+			"type": "shell",
+			"command": "C:\\Users\\denni\\.platformio\\penv\\Scripts\\platformio.exe",
+			"args": [
+				"run",
+				"--environment",
+				"wifi_connect_test"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "PlatformIO: Test Serial (esp32c3)",
+			"type": "shell",
+			"command": "C:\\Users\\denni\\.platformio\\penv\\Scripts\\platformio.exe",
+			"args": [
+				"test",
+				"--environment",
+				"esp32c3",
+				"--filter",
+				"serial_test"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "PlatformIO: Test WiFi Connect (esp32c3)",
+			"type": "shell",
+			"command": "C:\\Users\\denni\\.platformio\\penv\\Scripts\\platformio.exe",
+			"args": [
+				"test",
+				"--environment",
+				"esp32c3",
+				"--filter",
+				"wifi_connect_test"
 			],
 			"isBackground": false
 		},
@@ -49,7 +134,8 @@
 				"--environment",
 				"stepper_motor_test"
 			],
-			"isBackground": false
+			"isBackground": false,
+			"problemMatcher": []
 		}
 	]
 }
