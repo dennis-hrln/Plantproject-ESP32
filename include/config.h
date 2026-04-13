@@ -180,6 +180,10 @@
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 #define DEBUG_NO_SLEEP           1
 
+// Enable serial debugging output (115200 baud)
+// Set to 1 to enable serial debug messages, 0 for production (saves power)
+#define DEBUG_SERIAL             1
+
 // How often to wake and check soil moisture (in seconds)
 #define MEASUREMENT_INTERVAL_SEC    (1 * 60 * 60)   // 1 hour
 
