@@ -1,0 +1,15 @@
+{
+  "port": "COM8",
+  "baud": 115200,
+  "measurement_time_s": 0,
+  "live": true,
+  "live_refresh_s": 0.2,
+  "output_csv": "test/stepper_motor_test/data/stepper_voltage_capture.csv",
+  "output_png": "test/stepper_motor_test/data/stepper_voltage_capture.png",
+  "resistor_top_ohm": 10000,
+  "resistor_bottom_ohm": 20000,
+  "notes": {
+    "measurement_time_s": "Set to 0 to keep measuring until the live graph window is closed.",
+    "sampling": "Sampling frequency is configured in measure_voltage_config.h via SAMPLE_INTERVAL_MS."
+  }
+}
