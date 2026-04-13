@@ -136,6 +136,34 @@
 			],
 			"isBackground": false,
 			"problemMatcher": []
+		},
+		{
+			"label": "PlatformIO: Upload WiFi Connect Test",
+			"type": "shell",
+			"command": "C:\\Users\\denni\\.platformio\\penv\\Scripts\\platformio.exe",
+			"args": [
+				"run",
+				"--target",
+				"upload",
+				"--environment",
+				"wifi_connect_test"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "PlatformIO: Upload Serial Test",
+			"type": "shell",
+			"command": "C:\\Users\\denni\\.platformio\\penv\\Scripts\\platformio.exe",
+			"args": [
+				"run",
+				"--target",
+				"upload",
+				"--environment",
+				"serial_test"
+			],
+			"isBackground": false,
+			"problemMatcher": []
 		}
 	]
 }
