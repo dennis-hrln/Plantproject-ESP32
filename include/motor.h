@@ -1,5 +1,5 @@
 /**
- * motor.h - Stepper motor backend (A4988 / DRV8825)
+ * motor.h - Stepper motor backend (A4988 / DRV8825 / DRV8833)
  *
  * Independent from pump backend and used only when
  * ACTUATOR_TYPE == ACTUATOR_TYPE_STEPPER.

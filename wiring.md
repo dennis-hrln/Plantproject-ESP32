@@ -16,7 +16,7 @@ This document contains the full step-by-step wiring instructions and a consolida
 | 1 | Capacitive soil moisture sensor | v1.2 or v2.0 |
 | 0/1 | Mini water pump 3-6V | DC submersible pump |
 | 0/1 | Stepper motor pump 3-6vV| peristaltic|
-| 0/1 | stepper motor driver| A4988 DRV8825  |
+| 0/1 | stepper motor driver| A4988 / DRV8825 / DRV8833 |
 | 1 | N-channel MOSFET | IRLZ44N or 2N7000 |
 | 4 | AA  battery | alkaline |
 | 2 | 100kΩ resistors | Voltage divider |
@@ -51,18 +51,27 @@ This document contains the full step-by-step wiring instructions and a consolida
 - Pump (+) → Battery +
 - Flyback diode (1N400x): Cathode (striped) → Pump +, Anode → MOSFET Drain
 
-4) LEDs
+4) Optional stepper driver + stepper pump (when `ACTUATOR_TYPE_STEPPER`)
+
+- ESP32 GPIO21 → Driver STEP
+- ESP32 GPIO20 → Driver DIR
+- ESP32 GPIO8 → Driver EN (active LOW)
+- Driver VMOT and GND → Motor supply (according to driver rating)
+- Driver A1/A2/B1/B2 → Stepper motor coils
+- Tie driver SLEEP and RESET HIGH if required by your module
+
+5) LEDs
 
 - Green LED anode → ESP32 GPIO6 through 220Ω resistor; cathode → GND
 - Red LED anode → ESP32 GPIO7 through 220Ω resistor; cathode → GND
 
-5) Buttons (active LOW, use internal pull-ups)
+6) Buttons (active LOW, use internal pull-ups)
 
 - Main button → GPIO0 ↔ GND
 - Wet calibration → GPIO2 ↔ GND
 - Dry calibration → GPIO1 ↔ GND
 
-6) Water level float switch (active LOW = water low, internal pull-up)
+7) Water level float switch (active LOW = water low, internal pull-up)
 
 - Float switch wire 1 → ESP32 GPIO10
 - Float switch wire 2 → ESP32 GND
@@ -86,6 +95,11 @@ This document contains the full step-by-step wiring instructions and a consolida
 | MOSFET Source | GND |
 | MOSFET Drain | Pump (−) |
 | Pump (+) | Battery (+) |
+| ESP32 GPIO21 | Stepper driver STEP |
+| ESP32 GPIO20 | Stepper driver DIR |
+| ESP32 GPIO8 | Stepper driver EN (active LOW) |
+| Stepper driver VMOT/GND | Motor supply + common GND |
+| Stepper driver A1/A2/B1/B2 | Stepper motor coils |
 | ESP32 GPIO6 | Green LED (+) via 220Ω |
 | ESP32 GPIO7 | Red LED (+) via 220Ω |
 | Main Button | GPIO0 ↔ GND |

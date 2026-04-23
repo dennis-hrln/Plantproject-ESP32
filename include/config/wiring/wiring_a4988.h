@@ -1,0 +1,8 @@
+#ifndef CONFIG_WIRING_A4988_H
+#define CONFIG_WIRING_A4988_H
+
+#define PIN_STEPPER_STEP         GPIO_NUM_21
+#define PIN_STEPPER_DIR          GPIO_NUM_20
+#define PIN_STEPPER_EN           GPIO_NUM_8
+
+#endif // CONFIG_WIRING_A4988_H

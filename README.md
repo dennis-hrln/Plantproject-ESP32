@@ -28,7 +28,9 @@ A production-quality, battery-powered automatic plant watering system using ESP3
 |----------|-----------|--------------|
 | 1 | ESP32-C3 Supermini board | HW-466AB |
 | 1 | Capacitive soil moisture sensor | v1.2 or v2.0 |
-| 1 | Mini water pump 3-6V | DC submersible pump |
+| 0/1 | Mini water pump 3-6V | DC submersible pump |
+| 0/1 | Peristaltic stepper pump | NEMA-17 or similar |
+| 0/1 | Stepper driver | A4988 / DRV8825 / DRV8833 |
 | 1 | N-channel MOSFET | IRLZ44N or 2N7000 |
 | 1 | 3xAA Alkaline battery | 4.5V nominal |
 | 2 | 100kΩ resistors | Voltage divider |
@@ -207,6 +209,14 @@ Edit `include/config.h` to customize:
 
 - Sensitive values are loaded from `include/secrets.h` (local, ignored by git).
 - Create it by copying `include/secrets.example.h` and filling in your Wi-Fi/MQTT credentials.
+- In stepper mode, select your driver with `STEPPER_DRIVER_TYPE`:
+
+```cpp
+#define ACTUATOR_TYPE            ACTUATOR_TYPE_STEPPER
+#define STEPPER_DRIVER_TYPE      STEPPER_DRIVER_DRV8833
+```
+
+- DRV8833 support assumes a STEP/DIR/EN-compatible breakout with active-low EN.
 
 ## MQTT Broker Setup On A New PC (Windows or Raspberry Pi)
 

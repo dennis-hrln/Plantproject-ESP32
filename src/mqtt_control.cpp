@@ -11,12 +11,144 @@
 #include "water_level.h"
 #include "leds.h"
 #include "mqtt_diag.h"
+#include <string.h>
 
 static WiFiClient s_wifi;
 static PubSubClient s_mqtt(s_wifi);
 static uint32_t s_last_reconnect_ms = 0;
 static String s_plant_name = MQTT_PLANT_NAME;
 static String s_last_command_id;
+static int s_last_disconnect_reason = -1;
+
+static const char *wifi_status_text(wl_status_t status) {
+    switch (status) {
+        case WL_NO_SHIELD: return "NO_SHIELD";
+        case WL_IDLE_STATUS: return "IDLE";
+        case WL_NO_SSID_AVAIL: return "NO_SSID";
+        case WL_SCAN_COMPLETED: return "SCAN_DONE";
+        case WL_CONNECTED: return "CONNECTED";
+        case WL_CONNECT_FAILED: return "CONNECT_FAILED";
+        case WL_CONNECTION_LOST: return "CONNECTION_LOST";
+        case WL_DISCONNECTED: return "DISCONNECTED";
+        default: return "UNKNOWN";
+    }
+}
+
+static const char *wifi_disconnect_reason_text(int reason) {
+    switch (reason) {
+        case 2: return "AUTH_EXPIRE";
+        case 4: return "ASSOC_EXPIRE";
+        case 5: return "ASSOC_TOOMANY";
+        case 6: return "NOT_AUTHED";
+        case 7: return "NOT_ASSOCED";
+        case 8: return "ASSOC_LEAVE";
+        case 15: return "4WAY_HANDSHAKE_TIMEOUT";
+        case 16: return "GROUP_KEY_UPDATE_TIMEOUT";
+        case 17: return "IE_IN_4WAY_DIFFERS";
+        case 23: return "802_1X_AUTH_FAILED";
+        case 39: return "MIC_FAILURE";
+        case 201: return "NO_AP_FOUND";
+        case 202: return "AUTH_FAIL";
+        case 203: return "ASSOC_FAIL";
+        case 204: return "HANDSHAKE_TIMEOUT";
+        default: return "UNKNOWN";
+    }
+}
+
+static bool wifi_reason_is_auth_rejected() {
+    return s_last_disconnect_reason == 202;
+}
+
+static void on_wifi_event(WiFiEvent_t event, WiFiEventInfo_t info) {
+    if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
+        s_last_disconnect_reason = (int)info.wifi_sta_disconnected.reason;
+#ifdef DEBUG_SERIAL
+        Serial.print("[MQTT] WiFi disconnected reason=");
+        Serial.print(s_last_disconnect_reason);
+        Serial.print(" (");
+        Serial.print(wifi_disconnect_reason_text(s_last_disconnect_reason));
+        Serial.println(")");
+#endif
+    }
+}
+
+static void configure_wpa2_safe_sta_profile() {
+    WiFi.persistent(false);
+    WiFi.setAutoReconnect(false);
+    WiFi.setSleep(false);
+    WiFi.setMinSecurity(WIFI_AUTH_WPA2_PSK);
+}
+
+static void wifi_begin_with_scan_hint() {
+    int networks = WiFi.scanNetworks(false, true);
+    int channel = 0;
+    uint8_t bssid[6] = {0, 0, 0, 0, 0, 0};
+    bool found = false;
+
+    if (networks > 0) {
+        for (int i = 0; i < networks; ++i) {
+            if (WiFi.SSID(i) == String(MQTT_WIFI_SSID)) {
+                channel = WiFi.channel(i);
+                const uint8_t *scan_bssid = WiFi.BSSID(i);
+                if (scan_bssid != nullptr) {
+                    memcpy(bssid, scan_bssid, 6);
+                }
+                found = true;
+                break;
+            }
+        }
+    }
+    WiFi.scanDelete();
+
+    if (found && channel > 0) {
+        WiFi.begin(MQTT_WIFI_SSID, MQTT_WIFI_PASSWORD, channel, bssid, true);
+    } else {
+        WiFi.begin(MQTT_WIFI_SSID, MQTT_WIFI_PASSWORD);
+    }
+}
+
+static bool wifi_try_single_join(uint32_t timeout_ms) {
+    s_last_disconnect_reason = -1;
+
+    WiFi.disconnect(false, true);
+    delay(100);
+    WiFi.mode(WIFI_STA);
+    configure_wpa2_safe_sta_profile();
+    WiFi.setAutoReconnect(true);
+    wifi_begin_with_scan_hint();
+
+    const uint32_t start_ms = millis();
+    bool idle_fallback_retry_done = false;
+    while (WiFi.status() != WL_CONNECTED && (millis() - start_ms) < timeout_ms) {
+        wl_status_t now_status = (wl_status_t)WiFi.status();
+        const uint32_t now_ms = millis();
+
+        // AUTH_FAIL means the AP is rejecting credentials/security negotiation.
+        // Continuing this attempt rarely helps and only wastes wake time.
+        if (wifi_reason_is_auth_rejected()) {
+            break;
+        }
+
+        // Some AP/security combinations can stay in IDLE forever after begin().
+        // Retry once with plain begin() to force a new auth/assoc state machine run.
+        if (!idle_fallback_retry_done && now_status == WL_IDLE_STATUS && (now_ms - start_ms) > 5000UL) {
+#ifdef DEBUG_SERIAL
+            Serial.println("[MQTT] WiFi idle fallback retry...");
+#endif
+            WiFi.disconnect(false, true);
+            delay(120);
+            WiFi.mode(WIFI_STA);
+            configure_wpa2_safe_sta_profile();
+            WiFi.begin(MQTT_WIFI_SSID, MQTT_WIFI_PASSWORD);
+            idle_fallback_retry_done = true;
+        }
+
+        delay(120);
+        yield();
+    }
+
+    return WiFi.status() == WL_CONNECTED;
+}
 
 typedef struct {
     String command;
@@ -144,17 +276,26 @@ static ParsedCommand parse_command(const String &raw_payload) {
     return parsed;
 }
 
-static int parse_int_arg(const String &input, const char *prefix) {
+static bool parse_non_negative_int_arg(const String &input, const char *prefix, int &out) {
     const String p(prefix);
     if (!input.startsWith(p)) {
-        return -1;
+        return false;
     }
     String value = input.substring(p.length());
     value.trim();
     if (value.length() == 0) {
-        return -1;
+        return false;
     }
-    return value.toInt();
+
+    for (size_t i = 0; i < value.length(); ++i) {
+        const char c = value.charAt(i);
+        if (c < '0' || c > '9') {
+            return false;
+        }
+    }
+
+    out = value.toInt();
+    return true;
 }
 
 static void handle_command(const ParsedCommand &parsed_cmd) {
@@ -251,8 +392,8 @@ static void handle_command(const ParsedCommand &parsed_cmd) {
         return;
     }
 
-    int min_h = parse_int_arg(cmd, "set_min:");
-    if (min_h >= 0) {
+    int min_h = 0;
+    if (parse_non_negative_int_arg(cmd, "set_min:", min_h)) {
         if (min_h > 100) min_h = 100;
         storage_set_minimal_humidity((uint8_t)min_h);
         mqtt_publish_ack("set_min", true, "ok", parsed_cmd.command_id);
@@ -261,13 +402,25 @@ static void handle_command(const ParsedCommand &parsed_cmd) {
         return;
     }
 
-    int max_h = parse_int_arg(cmd, "set_max:");
-    if (max_h >= 0) {
+    if (cmd.startsWith("set_min:")) {
+        mqtt_publish_ack("set_min", false, "invalid_value", parsed_cmd.command_id);
+        mark_processed();
+        return;
+    }
+
+    int max_h = 0;
+    if (parse_non_negative_int_arg(cmd, "set_max:", max_h)) {
         if (max_h > 100) max_h = 100;
         storage_set_max_humidity((uint8_t)max_h);
         mqtt_publish_ack("set_max", true, "ok", parsed_cmd.command_id);
         mark_processed();
         mqtt_control_publish_telemetry();
+        return;
+    }
+
+    if (cmd.startsWith("set_max:")) {
+        mqtt_publish_ack("set_max", false, "invalid_value", parsed_cmd.command_id);
+        mark_processed();
         return;
     }
 
@@ -313,29 +466,71 @@ static void wifi_ensure_connected() {
     Serial.println("[MQTT] WiFi connecting...");
 #endif
     mqtt_diag_wifi_connect_start();
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(MQTT_WIFI_SSID, MQTT_WIFI_PASSWORD);
 
-    const uint32_t start_ms = millis();
-    while (WiFi.status() != WL_CONNECTED && (millis() - start_ms) < 15000UL) {
-        delay(250);
-        yield();
+    const uint8_t max_attempts = 3;
+    for (uint8_t attempt = 1; attempt <= max_attempts; ++attempt) {
+        if (wifi_try_single_join(15000UL)) {
+#ifdef DEBUG_SERIAL
+            Serial.print("[MQTT] WiFi connected, IP=");
+            Serial.println(WiFi.localIP());
+#endif
+            mqtt_diag_wifi_connect_ok();
+            return;
+        }
+
+#ifdef DEBUG_SERIAL
+        wl_status_t status = (wl_status_t)WiFi.status();
+        Serial.print("[MQTT] WiFi attempt ");
+        Serial.print(attempt);
+        Serial.print("/");
+        Serial.print(max_attempts);
+        Serial.print(" failed, status=");
+        Serial.print((int)status);
+        Serial.print(" (");
+        Serial.print(wifi_status_text(status));
+        Serial.println(")");
+        if (s_last_disconnect_reason >= 0) {
+            Serial.print("[MQTT] last disconnect reason=");
+            Serial.print(s_last_disconnect_reason);
+            Serial.print(" (");
+            Serial.print(wifi_disconnect_reason_text(s_last_disconnect_reason));
+            Serial.println(")");
+        }
+#endif
+
+        if (attempt < max_attempts) {
+            if (wifi_reason_is_auth_rejected()) {
+#ifdef DEBUG_SERIAL
+                Serial.println("[MQTT] Auth rejected by AP; aborting remaining WiFi attempts");
+#endif
+                break;
+            }
+            delay(2500);
+            yield();
+        }
     }
 
 #ifdef DEBUG_SERIAL
-    if (WiFi.status() == WL_CONNECTED) {
-        Serial.print("[MQTT] WiFi connected, IP=");
-        Serial.println(WiFi.localIP());
-    } else {
-        Serial.print("[MQTT] WiFi connect timeout, status=");
-        Serial.println((int)WiFi.status());
-    }
+    Serial.print("[MQTT] WiFi connect timeout, status=");
+    Serial.print((int)WiFi.status());
+    Serial.print(" (");
+    Serial.print(wifi_status_text((wl_status_t)WiFi.status()));
+    Serial.println(")");
 #endif
-    if (WiFi.status() == WL_CONNECTED) {
-        mqtt_diag_wifi_connect_ok();
-    } else {
+    wl_status_t final_status = (wl_status_t)WiFi.status();
+    if (final_status != WL_CONNECTED) {
+        WiFi.disconnect(false, false);
+#ifdef DEBUG_SERIAL
+        if (s_last_disconnect_reason >= 0) {
+            Serial.print("[MQTT] last disconnect reason=");
+            Serial.print(s_last_disconnect_reason);
+            Serial.print(" (");
+            Serial.print(wifi_disconnect_reason_text(s_last_disconnect_reason));
+            Serial.println(")");
+        }
+#endif
         mqtt_diag_wifi_connect_fail();
-        mqtt_diag_wifi_status_code((int)WiFi.status());
+        mqtt_diag_wifi_status_code((int)final_status);
     }
 }
 
@@ -348,9 +543,10 @@ static void mqtt_try_reconnect() {
     if ((now - s_last_reconnect_ms) < MQTT_RECONNECT_MS) {
         return;
     }
-    s_last_reconnect_ms = now;
-
     wifi_ensure_connected();
+    // Timestamp after the (potentially long) connect attempt to avoid
+    // immediate duplicate retries in the same wake cycle.
+    s_last_reconnect_ms = millis();
     if (WiFi.status() != WL_CONNECTED) {
 #ifdef DEBUG_SERIAL
         Serial.println("[MQTT] Skip broker reconnect: WiFi not connected");
@@ -393,13 +589,17 @@ static void mqtt_try_reconnect() {
 void mqtt_control_init() {
     s_mqtt.setServer(MQTT_BROKER_HOST, MQTT_BROKER_PORT);
     s_mqtt.setCallback(mqtt_callback);
+    WiFi.onEvent(on_wifi_event);
+
+#ifdef DEBUG_SERIAL
+    Serial.println("[MQTT] WiFi strategy=attempts-v2");
+#endif
 
     String persisted_name = storage_get_plant_name();
     normalize_plant_name(persisted_name);
     s_plant_name = persisted_name;
     s_last_command_id = storage_get_last_command_id();
 
-    wifi_ensure_connected();
     mqtt_try_reconnect();
 }
 
