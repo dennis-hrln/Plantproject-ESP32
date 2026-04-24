@@ -93,7 +93,11 @@
 
 // Stepper behavior
 #define STEPPER_DEFAULT_DIR_CW   1      // 1=CW/high, 0=CCW/low
+#if (STEPPER_DRIVER_TYPE == STEPPER_DRIVER_DRV8833)
+#define STEPPER_STEP_HZ          120    // safer default for direct dual H-bridge drive
+#else
 #define STEPPER_STEP_HZ          400    // steps per second while running timed mode
+#endif
 #define STEPPER_DISABLE_WHEN_IDLE 1     // 1=disable driver on motor_off, 0=keep enabled
 
 // =============================================================================

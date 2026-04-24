@@ -15,6 +15,6 @@ static constexpr float R_BOTTOM_OHM = 20000.0f;
 // Possible lower bound with this serial CSV approach is about 10 ms (~100 Hz).
 // Recommended minimum for stable logging while stepping is 20 ms (~50 Hz).
 // Default: 50 ms (20 Hz).
-static constexpr uint32_t SAMPLE_INTERVAL_MS = 50UL;
+static constexpr uint32_t SAMPLE_INTERVAL_MS = 20UL;
 
 #endif

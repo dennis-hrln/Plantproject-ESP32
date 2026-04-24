@@ -7,47 +7,68 @@ static bool motor_running = false;
 static uint8_t drv8833_phase_idx = 0;
 static int8_t drv8833_phase_delta = 1;
 
-static inline void drv8833_set_all_low() {
-	digitalWrite(PIN_DRV8833_AN1, LOW);
-	digitalWrite(PIN_DRV8833_AN2, LOW);
-	digitalWrite(PIN_DRV8833_BN1, LOW);
-	digitalWrite(PIN_DRV8833_BN2, LOW);
-}
+enum Drv8833BridgeCmd : uint8_t {
+	DRV8833_BRIDGE_COAST = 0,
+	DRV8833_BRIDGE_FWD,
+	DRV8833_BRIDGE_REV,
+};
 
-static inline void drv8833_apply_phase(uint8_t idx) {
-	switch (idx & 0x03U) {
-		case 0:
-			digitalWrite(PIN_DRV8833_AN1, HIGH);
-			digitalWrite(PIN_DRV8833_AN2, LOW);
-			digitalWrite(PIN_DRV8833_BN1, HIGH);
-			digitalWrite(PIN_DRV8833_BN2, LOW);
+typedef struct {
+	Drv8833BridgeCmd a;
+	Drv8833BridgeCmd b;
+} Drv8833Phase;
+
+// Half-step sequence for bipolar stepper on dual H-bridge.
+static const Drv8833Phase DRV8833_HALFSTEP_SEQ[] = {
+	{DRV8833_BRIDGE_FWD,   DRV8833_BRIDGE_COAST},
+	{DRV8833_BRIDGE_FWD,   DRV8833_BRIDGE_FWD},
+	{DRV8833_BRIDGE_COAST, DRV8833_BRIDGE_FWD},
+	{DRV8833_BRIDGE_REV,   DRV8833_BRIDGE_FWD},
+	{DRV8833_BRIDGE_REV,   DRV8833_BRIDGE_COAST},
+	{DRV8833_BRIDGE_REV,   DRV8833_BRIDGE_REV},
+	{DRV8833_BRIDGE_COAST, DRV8833_BRIDGE_REV},
+	{DRV8833_BRIDGE_FWD,   DRV8833_BRIDGE_REV},
+};
+
+static inline void drv8833_write_bridge(gpio_num_t in1, gpio_num_t in2, Drv8833BridgeCmd cmd) {
+	switch (cmd) {
+		case DRV8833_BRIDGE_FWD:
+			digitalWrite(in1, HIGH);
+			digitalWrite(in2, LOW);
 			break;
-		case 1:
-			digitalWrite(PIN_DRV8833_AN1, LOW);
-			digitalWrite(PIN_DRV8833_AN2, HIGH);
-			digitalWrite(PIN_DRV8833_BN1, HIGH);
-			digitalWrite(PIN_DRV8833_BN2, LOW);
-			break;
-		case 2:
-			digitalWrite(PIN_DRV8833_AN1, LOW);
-			digitalWrite(PIN_DRV8833_AN2, HIGH);
-			digitalWrite(PIN_DRV8833_BN1, LOW);
-			digitalWrite(PIN_DRV8833_BN2, HIGH);
+		case DRV8833_BRIDGE_REV:
+			digitalWrite(in1, LOW);
+			digitalWrite(in2, HIGH);
 			break;
 		default:
-			digitalWrite(PIN_DRV8833_AN1, HIGH);
-			digitalWrite(PIN_DRV8833_AN2, LOW);
-			digitalWrite(PIN_DRV8833_BN1, LOW);
-			digitalWrite(PIN_DRV8833_BN2, HIGH);
+			digitalWrite(in1, LOW);
+			digitalWrite(in2, LOW);
 			break;
 	}
 }
 
+static inline void drv8833_set_all_coast() {
+	drv8833_write_bridge(PIN_DRV8833_AN1, PIN_DRV8833_AN2, DRV8833_BRIDGE_COAST);
+	drv8833_write_bridge(PIN_DRV8833_BN1, PIN_DRV8833_BN2, DRV8833_BRIDGE_COAST);
+}
+
+static inline void drv8833_apply_phase(uint8_t idx) {
+	const uint8_t seq_len = (uint8_t)(sizeof(DRV8833_HALFSTEP_SEQ) / sizeof(DRV8833_HALFSTEP_SEQ[0]));
+	const Drv8833Phase phase = DRV8833_HALFSTEP_SEQ[idx % seq_len];
+
+	// Short coast break-before-make helps prevent harsh direction transitions.
+	drv8833_set_all_coast();
+	delayMicroseconds(20);
+	drv8833_write_bridge(PIN_DRV8833_AN1, PIN_DRV8833_AN2, phase.a);
+	drv8833_write_bridge(PIN_DRV8833_BN1, PIN_DRV8833_BN2, phase.b);
+}
+
 static inline void drv8833_step_once() {
+	const uint8_t seq_len = (uint8_t)(sizeof(DRV8833_HALFSTEP_SEQ) / sizeof(DRV8833_HALFSTEP_SEQ[0]));
 	if (drv8833_phase_delta > 0) {
-		drv8833_phase_idx = (uint8_t)((drv8833_phase_idx + 1U) & 0x03U);
+		drv8833_phase_idx = (uint8_t)((drv8833_phase_idx + 1U) % seq_len);
 	} else {
-		drv8833_phase_idx = (uint8_t)((drv8833_phase_idx + 3U) & 0x03U);
+		drv8833_phase_idx = (uint8_t)((drv8833_phase_idx + seq_len - 1U) % seq_len);
 	}
 	drv8833_apply_phase(drv8833_phase_idx);
 }
@@ -66,7 +87,10 @@ static inline void stepper_enable(bool enable) {
 	#if (STEPPER_DRIVER_TYPE == STEPPER_DRIVER_DRV8833)
 	digitalWrite(PIN_DRV8833_STBY, enable ? HIGH : LOW);
 	if (!enable) {
-		drv8833_set_all_low();
+		drv8833_set_all_coast();
+	} else {
+		// Give bridge logic time to wake from standby.
+		delayMicroseconds(100);
 	}
 	#else
 	// A4988/DRV8825 use active-low ENABLE.
@@ -100,7 +124,7 @@ void motor_init() {
 
 	drv8833_phase_idx = 0;
 	drv8833_phase_delta = STEPPER_DEFAULT_DIR_CW ? 1 : -1;
-	drv8833_set_all_low();
+	drv8833_set_all_coast();
 	digitalWrite(PIN_DRV8833_STBY, LOW);
 	#else
 	pinMode(PIN_STEPPER_STEP, OUTPUT);
@@ -155,7 +179,7 @@ bool motor_run_timed(uint32_t duration_ms) {
 void motor_emergency_stop() {
 	stepper_enable(false);
 	#if (STEPPER_DRIVER_TYPE == STEPPER_DRIVER_DRV8833)
-	drv8833_set_all_low();
+	drv8833_set_all_coast();
 	#else
 	digitalWrite(PIN_STEPPER_STEP, LOW);
 	#endif
