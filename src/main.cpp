@@ -82,8 +82,16 @@ typedef enum {
 WakeReason determine_wake_reason() {
     esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
     
+    #ifdef DEBUG_SERIAL
+    Serial.print("[MAIN] Wake cause code: ");
+    Serial.println(cause);
+    #endif
+    
     switch (cause) {
         case ESP_SLEEP_WAKEUP_TIMER:
+            #ifdef DEBUG_SERIAL
+            Serial.println("[MAIN] Wake reason: TIMER");
+            #endif
             return WAKE_TIMER;
             
         case ESP_SLEEP_WAKEUP_GPIO:      // ESP32-C3 GPIO deep/light sleep wake
@@ -93,13 +101,22 @@ WakeReason determine_wake_reason() {
 #if SOC_PM_SUPPORT_EXT1_WAKEUP
         case ESP_SLEEP_WAKEUP_EXT1:      // Original ESP32 only
 #endif
+            #ifdef DEBUG_SERIAL
+            Serial.println("[MAIN] Wake reason: BUTTON");
+            #endif
             return WAKE_BUTTON;
             
         case ESP_SLEEP_WAKEUP_UNDEFINED:
             // No wake cause = first boot or reset
+            #ifdef DEBUG_SERIAL
+            Serial.println("[MAIN] Wake reason: POWER_ON");
+            #endif
             return WAKE_POWER_ON;
             
         default:
+            #ifdef DEBUG_SERIAL
+            Serial.println("[MAIN] Wake reason: UNKNOWN");
+            #endif
             return WAKE_UNKNOWN;
     }
 }
@@ -118,8 +135,18 @@ WakeReason determine_wake_reason() {
  * Note: ESP32-C3 uses per-pin gpio_wakeup_enable() configuration
  */
 void enter_deep_sleep(uint32_t sleep_seconds = MEASUREMENT_INTERVAL_SEC) {
+    #ifdef DEBUG_SERIAL
+    Serial.print("[MAIN] Preparing for deep sleep, duration: ");
+    Serial.print(sleep_seconds);
+    Serial.println(" seconds");
+    #endif
+    
     // Ensure pump is off before sleeping
     actuator_emergency_stop();
+    
+    #ifdef DEBUG_SERIAL
+    Serial.println("[MAIN] Actuator stopped");
+    #endif
     
     // Close NVS cleanly
     storage_close();
@@ -157,6 +184,10 @@ void enter_deep_sleep(uint32_t sleep_seconds = MEASUREMENT_INTERVAL_SEC) {
  * Called once after each wake from deep sleep.
  */
 void init_hardware() {
+    #ifdef DEBUG_SERIAL
+    Serial.println("[MAIN] Initializing hardware...");
+    #endif
+    
     // Release GPIO holds from deep sleep so pins can be reconfigured
     #if CONTROL_HAS_BUTTONS
     gpio_hold_dis(PIN_BTN_MAIN);
@@ -168,6 +199,9 @@ void init_hardware() {
     // Initialize storage first (needed by other modules)
     if (!storage_init()) {
         // NVS failure — flash error LED and continue with defaults
+        #ifdef DEBUG_SERIAL
+        Serial.println("[MAIN] ERROR: Storage init failed!");
+        #endif
         PLAY_PATTERN(NVS_FAIL);
     }
     
@@ -176,6 +210,9 @@ void init_hardware() {
     analogSetAttenuation(ADC_ATTENUATION);
     
     // Initialize sensors and actuators
+    #ifdef DEBUG_SERIAL
+    Serial.println("[MAIN] Initializing sensors and actuators...");
+    #endif
     sensor_init();
     battery_init();
     actuator_init();
@@ -187,6 +224,10 @@ void init_hardware() {
 #if CONTROL_HAS_BUTTONS
     buttons_init();
 #endif
+    
+    #ifdef DEBUG_SERIAL
+    Serial.println("[MAIN] Hardware initialization complete");
+    #endif
 }
 
 // =============================================================================
@@ -214,9 +255,9 @@ void show_alerts(bool *out_blocks_actions, bool *out_has_alert) {
     bool reservoir_low = water_level_low();
     
     #ifdef DEBUG_SERIAL
-    Serial.print("Water level pin (GPIO10) raw: ");
+    Serial.print("[MAIN] Water level pin (GPIO10) raw: ");
     Serial.println(digitalRead(PIN_WATER_LEVEL));
-    Serial.print("Water level low: ");
+    Serial.print("[MAIN] Water level low: ");
     Serial.println(reservoir_low ? "YES" : "NO");
     #endif
     
@@ -228,6 +269,16 @@ void show_alerts(bool *out_blocks_actions, bool *out_has_alert) {
     
     // Check battery
     BatteryState batt = battery_get_state();
+    
+    #ifdef DEBUG_SERIAL
+    Serial.print("[MAIN] Battery state: ");
+    switch(batt) {
+        case BATTERY_OK:       Serial.println("OK"); break;
+        case BATTERY_WARNING:  Serial.println("WARNING"); break;
+        case BATTERY_CRITICAL: Serial.println("CRITICAL"); break;
+        default:               Serial.println("UNKNOWN"); break;
+    }
+    #endif
     
     if (batt == BATTERY_CRITICAL) {
         led_show_battery_critical();
@@ -252,10 +303,29 @@ void show_alerts(bool *out_blocks_actions, bool *out_has_alert) {
  * Also signals alerts for low water reservoir or low battery.
  */
 void handle_timer_wake() {
+    #ifdef DEBUG_SERIAL
+    Serial.println("[MAIN] Handling timer wake - checking watering...");
+    #endif
+    
     // Execute main watering logic.
     // Water level and battery are also checked inside watering_check_and_execute()
     // as safety guards, so no redundant pre-check needed here.
     WateringResult result = watering_check_and_execute();
+    
+    #ifdef DEBUG_SERIAL
+    Serial.print("[MAIN] Watering result: ");
+    switch(result) {
+        case WATER_OK:           Serial.println("OK"); break;
+        case WATER_PARTIAL:      Serial.println("PARTIAL"); break;
+        case WATER_NOT_NEEDED:   Serial.println("NOT_NEEDED"); break;
+        case WATER_BATTERY_LOW:  Serial.println("BATTERY_LOW"); break;
+        case WATER_RESERVOIR_LOW: Serial.println("RESERVOIR_LOW"); break;
+        case WATER_TOO_SOON:     Serial.println("TOO_SOON"); break;
+        case WATER_SENSOR_ERROR: Serial.println("SENSOR_ERROR"); break;
+        case WATER_PUMP_FAILED:  Serial.println("PUMP_FAILED"); break;
+        default:                 Serial.println("UNKNOWN"); break;
+    }
+    #endif
     
     // LED feedback based on result
     switch (result) {
@@ -299,6 +369,9 @@ void handle_timer_wake() {
  * Delegates to button module for full interaction handling.
  */
 void handle_button_wake() {
+    #ifdef DEBUG_SERIAL
+    Serial.println("[MAIN] Handling button wake...");
+    #endif
     buttons_handle_interaction(true);
 }
 

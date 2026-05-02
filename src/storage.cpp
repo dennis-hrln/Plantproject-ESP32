@@ -16,7 +16,17 @@ static Preferences prefs;
 bool storage_init() {
     // Open NVS namespace in read-write mode
     // Second param: false = read-write, true = read-only
-    return prefs.begin(NVS_NAMESPACE, false);
+    bool result = prefs.begin(NVS_NAMESPACE, false);
+    
+    #ifdef DEBUG_SERIAL
+    if (result) {
+        Serial.println("[STORAGE] NVS initialized successfully");
+    } else {
+        Serial.println("[STORAGE] ERROR: NVS initialization failed!");
+    }
+    #endif
+    
+    return result;
 }
 
 void storage_close() {
@@ -38,10 +48,20 @@ uint16_t storage_get_sensor_wet() {
 
 void storage_set_sensor_dry(uint16_t value) {
     prefs.putUShort(NVS_KEY_SENSOR_DRY, value);
+    
+    #ifdef DEBUG_SERIAL
+    Serial.print("[STORAGE] Sensor dry value set to: ");
+    Serial.println(value);
+    #endif
 }
 
 void storage_set_sensor_wet(uint16_t value) {
     prefs.putUShort(NVS_KEY_SENSOR_WET, value);
+    
+    #ifdef DEBUG_SERIAL
+    Serial.print("[STORAGE] Sensor wet value set to: ");
+    Serial.println(value);
+    #endif
 }
 
 // =============================================================================
@@ -56,6 +76,12 @@ void storage_set_minimal_humidity(uint8_t percent) {
     // Clamp to valid range
     if (percent > 100) percent = 100;
     prefs.putUChar(NVS_KEY_MINIMAL_HUMIDITY, percent);
+    
+    #ifdef DEBUG_SERIAL
+    Serial.print("[STORAGE] Minimal humidity set to: ");
+    Serial.print(percent);
+    Serial.println("%");
+    #endif
 }
 
 uint8_t storage_get_max_humidity() {
@@ -66,6 +92,12 @@ void storage_set_max_humidity(uint8_t percent) {
     // Clamp to valid range
     if (percent > 100) percent = 100;
     prefs.putUChar(NVS_KEY_MAX_HUMIDITY, percent);
+    
+    #ifdef DEBUG_SERIAL
+    Serial.print("[STORAGE] Max humidity set to: ");
+    Serial.print(percent);
+    Serial.println("%");
+    #endif
 }
 
 // =============================================================================
@@ -95,6 +127,11 @@ bool storage_get_deep_sleep_enabled() {
 
 void storage_set_deep_sleep_enabled(bool enabled) {
     prefs.putBool(NVS_KEY_DEEP_SLEEP_ENABLED, enabled);
+    
+    #ifdef DEBUG_SERIAL
+    Serial.print("[STORAGE] Deep sleep ");
+    Serial.println(enabled ? "ENABLED" : "DISABLED");
+    #endif
 }
 
 // =============================================================================
@@ -119,6 +156,11 @@ uint32_t storage_get_last_watering_time() {
 
 void storage_set_last_watering_time(uint32_t timestamp) {
     prefs.putULong(NVS_KEY_LAST_WATERING, timestamp);
+    
+    #ifdef DEBUG_SERIAL
+    Serial.print("[STORAGE] Last watering time set to: ");
+    Serial.println(timestamp);
+    #endif
 }
 
 // =============================================================================
@@ -148,8 +190,17 @@ void storage_increment_boot_count(uint32_t sleep_duration_sec,
     boot_count++;
     prefs.putULong(NVS_KEY_BOOT_COUNT, boot_count);
     
+    
     total_time += sleep_duration_sec + awake_duration_sec;
     prefs.putULong(NVS_KEY_TOTAL_TIME, total_time);
+    
+    #ifdef DEBUG_SERIAL
+    Serial.print("[STORAGE] Boot count: ");
+    Serial.print(boot_count);
+    Serial.print(", Total time: ");
+    Serial.print(total_time / 3600);
+    Serial.println(" hours");
+    #endif
 }
 
 uint32_t storage_get_boot_count() {

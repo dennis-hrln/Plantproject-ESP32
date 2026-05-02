@@ -31,7 +31,7 @@
 #define ACTUATOR_TYPE_STEPPER    1
 
 // Select active actuator here.
-#define ACTUATOR_TYPE            ACTUATOR_TYPE_STEPPER
+#define ACTUATOR_TYPE            ACTUATOR_TYPE_PUMP
 
 // =============================================================================
 // CONTROL SOURCE SELECTION
@@ -44,7 +44,7 @@
 #define CONTROL_MODE_BOTH         2
 
 // Select control source here.
-#define CONTROL_MODE              CONTROL_MODE_BOTH
+#define CONTROL_MODE              CONTROL_MODE_BUTTONS
 
 // =============================================================================
 // MQTT SETTINGS (used when CONTROL_MODE includes MQTT)
@@ -117,11 +117,11 @@
 // Example: 100k / (100k + 100k) = 0.5 → multiply ADC voltage by 2
 #define BATTERY_DIVIDER_RATIO   2.0
 
-// 3× Alkaline AA: fresh ~4.8V (3×1.6V), nominal 4.5V (3×1.5V), dead 3.8V (3×0.9V)
-#define BATTERY_FULL_MV         4500    // Nominal fresh (3 × 1.5V)
-#define BATTERY_WARNING_MV      4400    // Getting low  (3 × 1.2V)
-#define BATTERY_CRITICAL_MV     4000    // Disable watering (3 × 1.0V)
-#define BATTERY_EMPTY_MV        3800    // Dead (3 × 0.9V)
+// 4× NimH AA: fresh ~4.8V (4×1.2V), nominal 4.5V (3×1.5V), dead 3.8V (3×0.9V)
+#define BATTERY_FULL_MV         5200    // Nominal fresh (4 × 1.3V)
+#define BATTERY_WARNING_MV      4600    // Getting low  (4 × 1.15V)
+#define BATTERY_CRITICAL_MV     4400    // Disable watering (4 × 1.0V)
+#define BATTERY_EMPTY_MV        4000    // Dead (4 × 1.0V)
 
 // =============================================================================
 // SOIL SENSOR DEFAULTS (raw ADC values, will be overwritten by calibration)

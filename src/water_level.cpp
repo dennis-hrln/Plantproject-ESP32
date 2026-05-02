@@ -15,6 +15,10 @@
 
 void water_level_init() {
     pinMode(PIN_WATER_LEVEL, INPUT_PULLUP);
+    
+    #ifdef DEBUG_SERIAL
+    Serial.println("[WATER_LEVEL] Initialized");
+    #endif
 }
 
 static bool water_level_low_stable() {
@@ -36,10 +40,24 @@ static bool water_level_low_stable() {
 
 bool water_level_ok() {
     // Switch open (enough water) → pin pulled HIGH
-    return !water_level_low_stable();
+    bool status = !water_level_low_stable();
+    
+    #ifdef DEBUG_SERIAL
+    Serial.print("[WATER_LEVEL] Status: ");
+    Serial.println(status ? "OK" : "LOW");
+    #endif
+    
+    return status;
 }
 
 bool water_level_low() {
     // Switch closed (water low) → pin pulled LOW
-    return water_level_low_stable();
+    bool status = water_level_low_stable();
+    
+    #ifdef DEBUG_SERIAL
+    Serial.print("[WATER_LEVEL] Check result: ");
+    Serial.println(status ? "LOW" : "OK");
+    #endif
+    
+    return status;
 }

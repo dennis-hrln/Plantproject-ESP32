@@ -161,6 +161,12 @@ static WateringResult pump_until_max() {
     uint8_t pulses  = 0;
     bool    reached_max = false;
 
+    #ifdef DEBUG_SERIAL
+    Serial.print("[WATERING] Starting pump loop, max humidity: ");
+    Serial.print(max_hum);
+    Serial.println("%");
+    #endif
+
     while (pulses < MAX_PUMP_PULSES) {
         // Battery check belongs to decision logic, before each watering pulse.
         if (!battery_watering_allowed()) {
@@ -170,11 +176,22 @@ static WateringResult pump_until_max() {
         // Run pump for one pulse
         bool pump_success = actuator_run_timed(PUMP_RUN_DURATION_MS);
         if (!pump_success) {
+            #ifdef DEBUG_SERIAL
+            Serial.print("[WATERING] Pump pulse ");
+            Serial.print(pulses + 1);
+            Serial.println(" FAILED!");
+            #endif
             // First pulse failed → pump error; later failure → partial success
             if (pulses == 0) return WATER_PUMP_FAILED;
             break;
         }
         pulses++;
+
+        #ifdef DEBUG_SERIAL
+        Serial.print("[WATERING] Pump pulse ");
+        Serial.print(pulses);
+        Serial.println(" complete, waiting for soak...");
+        #endif
 
         // Wait for water to soak into soil before re-reading
         delay(SOAK_WAIT_TIME_MS);
@@ -182,21 +199,50 @@ static WateringResult pump_until_max() {
         // Re-read sensor
         uint16_t raw = sensor_read_raw();
         if (!sensor_reading_valid(raw)) {
+            #ifdef DEBUG_SERIAL
+            Serial.println("[WATERING] ERROR: Sensor invalid during pump loop!");
+            #endif
             // Sensor error mid-loop — we already delivered water, stop safely
             break;
         }
         current_humidity = sensor_raw_to_humidity_percent(raw);
 
+        #ifdef DEBUG_SERIAL
+        Serial.print("[WATERING] Post-soak humidity: ");
+        Serial.print(current_humidity);
+        Serial.println("%");
+        #endif
+
         // Target reached?
         if (current_humidity >= max_hum) {
+            #ifdef DEBUG_SERIAL
+            Serial.println("[WATERING] Target humidity reached!");
+            #endif
             reached_max = true;
             break;
         }
 
         // Safety re-checks before next pulse
-        if (!battery_watering_allowed()) break;
-        if (water_level_low())           break;
+        if (!battery_watering_allowed()) {
+            #ifdef DEBUG_SERIAL
+            Serial.println("[WATERING] Battery check failed during pump loop");
+            #endif
+            break;
+        }
+        if (water_level_low()) {
+            #ifdef DEBUG_SERIAL
+            Serial.println("[WATERING] Water level check failed during pump loop");
+            #endif
+            break;
+        }
     }
+
+    #ifdef DEBUG_SERIAL
+    Serial.print("[WATERING] Pump sequence complete: ");
+    Serial.print(pulses);
+    Serial.print(" pulses, result: ");
+    Serial.println(reached_max ? "OK" : "PARTIAL");
+    #endif
 
     return reached_max ? WATER_OK : WATER_PARTIAL;
 }
@@ -206,37 +252,83 @@ static WateringResult pump_until_max() {
 // =============================================================================
 
 WateringResult watering_check_and_execute() {
+    #ifdef DEBUG_SERIAL
+    Serial.println("[WATERING] Starting watering check...");
+    #endif
+    
     // Step 1: Read sensor once
     current_raw_sensor = sensor_read_raw();
     
+    #ifdef DEBUG_SERIAL
+    Serial.print("[WATERING] Sensor raw: ");
+    Serial.println(current_raw_sensor);
+    #endif
+    
     // Step 2: Validate sensor reading
     if (!sensor_reading_valid(current_raw_sensor)) {
+        #ifdef DEBUG_SERIAL
+        Serial.println("[WATERING] ERROR: Invalid sensor reading!");
+        #endif
         return WATER_SENSOR_ERROR;
     }
     
     // Step 3: Convert to humidity using the same raw reading
     current_humidity = sensor_raw_to_humidity_percent(current_raw_sensor);
     
+    #ifdef DEBUG_SERIAL
+    Serial.print("[WATERING] Current humidity: ");
+    Serial.print(current_humidity);
+    Serial.println("%");
+    #endif
+    
     // Step 4: Check if watering is needed (humidity below minimal threshold)
     uint8_t minimal = storage_get_minimal_humidity();
+    #ifdef DEBUG_SERIAL
+    Serial.print("[WATERING] Minimal humidity threshold: ");
+    Serial.print(minimal);
+    Serial.println("%");
+    #endif
+    
     if (current_humidity >= minimal) {
+        #ifdef DEBUG_SERIAL
+        Serial.println("[WATERING] Soil moisture OK - no watering needed");
+        #endif
         return WATER_NOT_NEEDED;
     }
     
+    #ifdef DEBUG_SERIAL
+    Serial.println("[WATERING] Soil moisture low - checking conditions...");
+    #endif
+    
     // Step 5: Check water reservoir level
     if (water_level_low()) {
+        #ifdef DEBUG_SERIAL
+        Serial.println("[WATERING] WARNING: Water reservoir low!");
+        #endif
         return WATER_RESERVOIR_LOW;
     }
     
     // Step 6: Check battery
     if (!battery_watering_allowed()) {
+        #ifdef DEBUG_SERIAL
+        Serial.println("[WATERING] WARNING: Battery too low for watering!");
+        #endif
         return WATER_BATTERY_LOW;
     }
     
     // Step 7: Check minimum interval
     if (!interval_elapsed()) {
+        uint32_t seconds_left = get_seconds_until_interval_elapsed();
+        #ifdef DEBUG_SERIAL
+        Serial.print("[WATERING] Watering interval not elapsed yet. Seconds until allowed: ");
+        Serial.println(seconds_left);
+        #endif
         return WATER_TOO_SOON;
     }
+    
+    #ifdef DEBUG_SERIAL
+    Serial.println("[WATERING] All conditions met - starting pump sequence...");
+    #endif
     
     // Step 8: Pulse-pump loop — water until max humidity or safety limit
     WateringResult result = pump_until_max();
@@ -244,6 +336,9 @@ WateringResult watering_check_and_execute() {
     // Step 9: Update timestamp (even for partial — water was delivered)
     if (result == WATER_OK || result == WATER_PARTIAL) {
         storage_set_last_watering_time(get_current_time_sec());
+        #ifdef DEBUG_SERIAL
+        Serial.println("[WATERING] Watering timestamp updated");
+        #endif
     }
     
     return result;
@@ -254,30 +349,55 @@ WateringResult watering_check_and_execute() {
 // =============================================================================
 
 WateringResult watering_manual(bool force_override) {
+    #ifdef DEBUG_SERIAL
+    Serial.print("[WATERING] Manual watering requested (force: ");
+    Serial.println(force_override ? "YES)" : "NO)");
+    #endif
+    
     // Check water reservoir first (never skip this)
     if (water_level_low()) {
+        #ifdef DEBUG_SERIAL
+        Serial.println("[WATERING] Manual watering BLOCKED: Reservoir low");
+        #endif
         return WATER_RESERVOIR_LOW;
     }
     
     // Check battery (never skip this)
     if (!battery_watering_allowed()) {
+        #ifdef DEBUG_SERIAL
+        Serial.println("[WATERING] Manual watering BLOCKED: Battery low");
+        #endif
         return WATER_BATTERY_LOW;
     }
     
     // Check interval unless forced
     if (!force_override && !interval_elapsed()) {
+        #ifdef DEBUG_SERIAL
+        Serial.println("[WATERING] Manual watering BLOCKED: Interval not elapsed");
+        #endif
         return WATER_TOO_SOON;
     }
+    
+    #ifdef DEBUG_SERIAL
+    Serial.println("[WATERING] Starting manual watering pump...");
+    #endif
     
     // Run pump
     bool pump_success = actuator_run_timed(PUMP_RUN_DURATION_MS);
     
     if (!pump_success) {
+        #ifdef DEBUG_SERIAL
+        Serial.println("[WATERING] Manual watering FAILED: Pump error");
+        #endif
         return WATER_PUMP_FAILED;
     }
     
     // Update timestamp
     storage_set_last_watering_time(get_current_time_sec());
+    
+    #ifdef DEBUG_SERIAL
+    Serial.println("[WATERING] Manual watering completed successfully");
+    #endif
     
     return WATER_OK;
 }

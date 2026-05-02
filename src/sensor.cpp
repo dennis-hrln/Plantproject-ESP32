@@ -13,6 +13,10 @@
 void sensor_init() {
     // ADC resolution + attenuation are configured globally in init_hardware()
     pinMode(PIN_SOIL_SENSOR, INPUT);
+    
+    #ifdef DEBUG_SERIAL
+    Serial.println("[SENSOR] Initialized");
+    #endif
 }
 
 // =============================================================================
@@ -28,7 +32,14 @@ uint16_t sensor_read_raw() {
         delayMicroseconds(100);  // Small delay between samples
     }
     
-    return (uint16_t)(sum / ADC_SAMPLES);
+    uint16_t raw = (uint16_t)(sum / ADC_SAMPLES);
+    
+    #ifdef DEBUG_SERIAL
+    Serial.print("[SENSOR] Raw reading: ");
+    Serial.println(raw);
+    #endif
+    
+    return raw;
 }
 
 // =============================================================================
@@ -127,8 +138,18 @@ bool sensor_reading_valid(uint16_t raw_value) {
     // Check for extreme values that indicate hardware problems
     
     // Value of 0 or max usually indicates disconnected sensor
-    if (raw_value < 100) return false;
-    if (raw_value > ADC_MAX_VALUE - 100) return false;
+    if (raw_value < 100) {
+        #ifdef DEBUG_SERIAL
+        Serial.println("[SENSOR] ERROR: Reading too low (sensor disconnected?)");
+        #endif
+        return false;
+    }
+    if (raw_value > ADC_MAX_VALUE - 100) {
+        #ifdef DEBUG_SERIAL
+        Serial.println("[SENSOR] ERROR: Reading too high (sensor disconnected?)");
+        #endif
+        return false;
+    }
     
     // Value is within reasonable range
     return true;

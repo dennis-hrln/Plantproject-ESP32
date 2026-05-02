@@ -191,6 +191,10 @@ void buttons_init(void) {
         pinMode(BTN_PINS[i], INPUT_PULLUP);
     }
     buttons_reset_all();
+    
+    #ifdef DEBUG_SERIAL
+    Serial.println("[BUTTONS] Initialized");
+    #endif
 }
 
 // =============================================================================
@@ -198,10 +202,27 @@ void buttons_init(void) {
 // =============================================================================
 
 static void perform_manual_watering(void) {
+    #ifdef DEBUG_SERIAL
+    Serial.println("[BUTTONS] Manual watering requested");
+    #endif
+    
     PLAY_PATTERN(BTN_ACK);
     // force_override = true: the user explicitly chose to water, so skip
     // the minimum-interval check.  Battery safety is still enforced.
     WateringResult result = watering_manual(true);
+
+    #ifdef DEBUG_SERIAL
+    Serial.print("[BUTTONS] Manual watering result: ");
+    switch(result) {
+        case WATER_OK: Serial.println("OK"); break;
+        case WATER_PARTIAL: Serial.println("PARTIAL"); break;
+        case WATER_BATTERY_LOW: Serial.println("BATTERY_LOW"); break;
+        case WATER_RESERVOIR_LOW: Serial.println("RESERVOIR_LOW"); break;
+        case WATER_TOO_SOON: Serial.println("TOO_SOON"); break;
+        case WATER_PUMP_FAILED: Serial.println("PUMP_FAILED"); break;
+        default: Serial.println("ERROR"); break;
+    }
+    #endif
 
     switch (result) {
         case WATER_OK:          // fall through
@@ -212,7 +233,13 @@ static void perform_manual_watering(void) {
 }
 
 static void perform_display_humidity(void) {
-    led_display_humidity(sensor_read_humidity_percent());
+    uint8_t humidity = sensor_read_humidity_percent();
+    #ifdef DEBUG_SERIAL
+    Serial.print("[BUTTONS] Display humidity: ");
+    Serial.print(humidity);
+    Serial.println("%");
+    #endif
+    led_display_humidity(humidity);
 }
 
 static void perform_display_humidity_range(void) {
@@ -223,21 +250,39 @@ static void perform_display_humidity_range(void) {
 }
 
 static void perform_display_battery(void) {
-    led_display_battery_percent(battery_get_percent());
+    uint8_t percent = battery_get_percent();
+    #ifdef DEBUG_SERIAL
+    Serial.print("[BUTTONS] Display battery: ");
+    Serial.print(percent);
+    Serial.println("%");
+    #endif
+    led_display_battery_percent(percent);
 }
 
 static void perform_calibrate_wet(void) {
+    #ifdef DEBUG_SERIAL
+    Serial.println("[BUTTONS] Starting WET calibration");
+    #endif
     led_red_on();                       // Red LED on during wet calibration
     (void)sensor_calibrate_wet();
     led_red_off();
     led_show_success();
+    #ifdef DEBUG_SERIAL
+    Serial.println("[BUTTONS] WET calibration complete");
+    #endif
 }
 
 static void perform_calibrate_dry(void) {
+    #ifdef DEBUG_SERIAL
+    Serial.println("[BUTTONS] Starting DRY calibration");
+    #endif
     led_green_on();                     // Green LED on during dry calibration
     (void)sensor_calibrate_dry();
     led_green_off();
     led_show_success();
+    #ifdef DEBUG_SERIAL
+    Serial.println("[BUTTONS] DRY calibration complete");
+    #endif
 }
 
 static void adjust_minimal_humidity(int8_t direction) {
@@ -250,6 +295,12 @@ static void adjust_minimal_humidity(int8_t direction) {
     }
 
     storage_set_minimal_humidity(val);
+
+    #ifdef DEBUG_SERIAL
+    Serial.print("[BUTTONS] Adjusted minimal humidity to ");
+    Serial.print(val);
+    Serial.println("%");
+    #endif
 
     // Green LED is on in set-min-humidity mode.
     if (direction > 0) {
@@ -275,6 +326,12 @@ static void adjust_max_humidity(int8_t direction) {
     }
 
     storage_set_max_humidity(val);
+
+    #ifdef DEBUG_SERIAL
+    Serial.print("[BUTTONS] Adjusted max humidity to ");
+    Serial.print(val);
+    Serial.println("%");
+    #endif
 
     // Red LED is on in set-max-humidity mode.
     if (direction > 0) {

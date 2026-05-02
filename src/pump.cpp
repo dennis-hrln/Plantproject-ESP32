@@ -19,6 +19,10 @@ void pump_init() {
     // Ensure pump starts OFF (LOW = MOSFET off = pump off)
     digitalWrite(PIN_PUMP, LOW);
     pump_running = false;
+    
+    #ifdef DEBUG_SERIAL
+    Serial.println("[PUMP] Initialized");
+    #endif
 }
 
 // =============================================================================
@@ -28,11 +32,19 @@ void pump_init() {
 void pump_on() {
     digitalWrite(PIN_PUMP, HIGH);  // HIGH = MOSFET on = pump runs
     pump_running = true;
+    
+    #ifdef DEBUG_SERIAL
+    Serial.println("[PUMP] Turned ON");
+    #endif
 }
 
 void pump_off() {
     digitalWrite(PIN_PUMP, LOW);   // LOW = MOSFET off = pump stops
     pump_running = false;
+    
+    #ifdef DEBUG_SERIAL
+    Serial.println("[PUMP] Turned OFF");
+    #endif
 }
 
 // =============================================================================
@@ -42,8 +54,19 @@ void pump_off() {
 bool pump_run_timed(uint32_t duration_ms) {
     // Enforce safety maximum
     if (duration_ms > PUMP_MAX_DURATION_MS) {
+        #ifdef DEBUG_SERIAL
+        Serial.print("[PUMP] Duration capped to ");
+        Serial.print(PUMP_MAX_DURATION_MS);
+        Serial.println(" ms");
+        #endif
         duration_ms = PUMP_MAX_DURATION_MS;
     }
+
+    #ifdef DEBUG_SERIAL
+    Serial.print("[PUMP] Running for ");
+    Serial.print(duration_ms);
+    Serial.println(" ms");
+    #endif
 
     // Start pump
     pump_on();
@@ -58,6 +81,10 @@ bool pump_run_timed(uint32_t duration_ms) {
     // Stop pump
     pump_off();
 
+    #ifdef DEBUG_SERIAL
+    Serial.println("[PUMP] Run complete");
+    #endif
+
     return true;
 }
 
@@ -69,6 +96,10 @@ void pump_emergency_stop() {
     // Immediately stop pump, no checks
     digitalWrite(PIN_PUMP, LOW);
     pump_running = false;
+    
+    #ifdef DEBUG_SERIAL
+    Serial.println("[PUMP] EMERGENCY STOP");
+    #endif
 }
 
 bool pump_is_running() {

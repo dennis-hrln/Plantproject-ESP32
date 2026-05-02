@@ -126,6 +126,9 @@ void motor_init() {
 	drv8833_phase_delta = STEPPER_DEFAULT_DIR_CW ? 1 : -1;
 	drv8833_set_all_coast();
 	digitalWrite(PIN_DRV8833_STBY, LOW);
+	#ifdef DEBUG_SERIAL
+	Serial.println("[MOTOR] DRV8833 initialized");
+	#endif
 	#else
 	pinMode(PIN_STEPPER_STEP, OUTPUT);
 	pinMode(PIN_STEPPER_DIR, OUTPUT);
@@ -134,6 +137,9 @@ void motor_init() {
 	digitalWrite(PIN_STEPPER_STEP, LOW);
 	digitalWrite(PIN_STEPPER_DIR, STEPPER_DEFAULT_DIR_CW ? HIGH : LOW);
 	stepper_enable(false);
+	#ifdef DEBUG_SERIAL
+	Serial.println("[MOTOR] Stepper driver initialized");
+	#endif
 	#endif
 	motor_running = false;
 }
@@ -144,19 +150,34 @@ void motor_on() {
 	drv8833_apply_phase(drv8833_phase_idx);
 	#endif
 	motor_running = true;
+	#ifdef DEBUG_SERIAL
+	Serial.println("[MOTOR] Enabled");
+	#endif
 }
 
 void motor_off() {
-#if (STEPPER_DISABLE_WHEN_IDLE)
+#if (MOTOR_DISABLE_WHEN_IDLE)
 	stepper_enable(false);
 #endif
 	motor_running = false;
+	#ifdef DEBUG_SERIAL
+	Serial.println("[MOTOR] Disabled");
+	#endif
 }
 
 bool motor_run_timed(uint32_t duration_ms) {
 	if (duration_ms == 0) {
+		#ifdef DEBUG_SERIAL
+		Serial.println("[MOTOR] Zero duration requested");
+		#endif
 		return true;
 	}
+
+	#ifdef DEBUG_SERIAL
+	Serial.print("[MOTOR] Running for ");
+	Serial.print(duration_ms);
+	Serial.println(" ms");
+	#endif
 
 	motor_on();
 
@@ -173,6 +194,11 @@ bool motor_run_timed(uint32_t duration_ms) {
 	}
 
 	motor_off();
+	
+	#ifdef DEBUG_SERIAL
+	Serial.println("[MOTOR] Run complete");
+	#endif
+	
 	return true;
 }
 
@@ -184,6 +210,10 @@ void motor_emergency_stop() {
 	digitalWrite(PIN_STEPPER_STEP, LOW);
 	#endif
 	motor_running = false;
+	
+	#ifdef DEBUG_SERIAL
+	Serial.println("[MOTOR] EMERGENCY STOP");
+	#endif
 }
 
 bool motor_is_running() {
