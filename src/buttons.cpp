@@ -25,6 +25,54 @@ static const uint8_t BTN_PINS[BTN_COUNT] = {
     PIN_BTN_CAL_DRY
 };
 
+#ifdef DEBUG_SERIAL
+static void btn_log(const __FlashStringHelper *msg) {
+    Serial.print(F("[BTN] "));
+    Serial.println(msg);
+}
+
+static void btn_log_mode(ButtonMode mode) {
+    Serial.print(F("[BTN] mode="));
+    switch (mode) {
+        case MODE_GENERAL:             Serial.println(F("gen")); break;
+        case MODE_PLANT_WATERING:      Serial.println(F("water")); break;
+        case MODE_DISPLAY_HUMIDITY:    Serial.println(F("hum")); break;
+        case MODE_DISPLAY_HUMIDITY_RANGE: Serial.println(F("range")); break;
+        case MODE_CALIBRATION:         Serial.println(F("cal")); break;
+        case MODE_CALIBRATE_DRY:       Serial.println(F("cal_dry")); break;
+        case MODE_CALIBRATE_WET:       Serial.println(F("cal_wet")); break;
+        case MODE_DISPLAY_BATTERY:     Serial.println(F("bat")); break;
+        case MODE_SET_HUMIDITY:        Serial.println(F("set_h")); break;
+        case MODE_SET_MIN_HUMIDITY:    Serial.println(F("set_min")); break;
+        case MODE_SET_MAX_HUMIDITY:    Serial.println(F("set_max")); break;
+        case MODE_LOWER_MIN_HUMIDITY:  Serial.println(F("min-")); break;
+        case MODE_ADD_MIN_HUMIDITY:    Serial.println(F("min+")); break;
+        case MODE_LOWER_MAX_HUMIDITY:  Serial.println(F("max-")); break;
+        case MODE_ADD_MAX_HUMIDITY:    Serial.println(F("max+")); break;
+        default:                       Serial.println(F("unk")); break;
+    }
+}
+
+static void btn_log_u8(const __FlashStringHelper *label, uint8_t value) {
+    Serial.print(F("[BTN] "));
+    Serial.print(label);
+    Serial.println(value);
+}
+
+static void btn_log_water_result(WateringResult result) {
+    Serial.print(F("[BTN] mw="));
+    switch (result) {
+        case WATER_OK:            Serial.println(F("OK")); break;
+        case WATER_PARTIAL:       Serial.println(F("PARTIAL")); break;
+        case WATER_BATTERY_LOW:   Serial.println(F("BAT_LOW")); break;
+        case WATER_RESERVOIR_LOW: Serial.println(F("RES_LOW")); break;
+        case WATER_TOO_SOON:      Serial.println(F("TOO_SOON")); break;
+        case WATER_PUMP_FAILED:   Serial.println(F("PUMP_FAIL")); break;
+        default:                  Serial.println(F("ERR")); break;
+    }
+}
+#endif
+
 // =============================================================================
 // PER-BUTTON STATE (single struct, one debounce layer)
 // =============================================================================
@@ -193,7 +241,7 @@ void buttons_init(void) {
     buttons_reset_all();
     
     #ifdef DEBUG_SERIAL
-    Serial.println("[BUTTONS] Initialized");
+    btn_log(F("init"));
     #endif
 }
 
@@ -203,7 +251,7 @@ void buttons_init(void) {
 
 static void perform_manual_watering(void) {
     #ifdef DEBUG_SERIAL
-    Serial.println("[BUTTONS] Manual watering requested");
+    btn_log(F("mw"));
     #endif
     
     PLAY_PATTERN(BTN_ACK);
@@ -212,16 +260,7 @@ static void perform_manual_watering(void) {
     WateringResult result = watering_manual(true);
 
     #ifdef DEBUG_SERIAL
-    Serial.print("[BUTTONS] Manual watering result: ");
-    switch(result) {
-        case WATER_OK: Serial.println("OK"); break;
-        case WATER_PARTIAL: Serial.println("PARTIAL"); break;
-        case WATER_BATTERY_LOW: Serial.println("BATTERY_LOW"); break;
-        case WATER_RESERVOIR_LOW: Serial.println("RESERVOIR_LOW"); break;
-        case WATER_TOO_SOON: Serial.println("TOO_SOON"); break;
-        case WATER_PUMP_FAILED: Serial.println("PUMP_FAILED"); break;
-        default: Serial.println("ERROR"); break;
-    }
+    btn_log_water_result(result);
     #endif
 
     switch (result) {
@@ -235,9 +274,7 @@ static void perform_manual_watering(void) {
 static void perform_display_humidity(void) {
     uint8_t humidity = sensor_read_humidity_percent();
     #ifdef DEBUG_SERIAL
-    Serial.print("[BUTTONS] Display humidity: ");
-    Serial.print(humidity);
-    Serial.println("%");
+    btn_log_u8(F("hum="), humidity);
     #endif
     led_display_humidity(humidity);
 }
@@ -252,36 +289,34 @@ static void perform_display_humidity_range(void) {
 static void perform_display_battery(void) {
     uint8_t percent = battery_get_percent();
     #ifdef DEBUG_SERIAL
-    Serial.print("[BUTTONS] Display battery: ");
-    Serial.print(percent);
-    Serial.println("%");
+    btn_log_u8(F("bat="), percent);
     #endif
     led_display_battery_percent(percent);
 }
 
 static void perform_calibrate_wet(void) {
     #ifdef DEBUG_SERIAL
-    Serial.println("[BUTTONS] Starting WET calibration");
+    btn_log(F("cal wet"));
     #endif
     led_red_on();                       // Red LED on during wet calibration
     (void)sensor_calibrate_wet();
     led_red_off();
     led_show_success();
     #ifdef DEBUG_SERIAL
-    Serial.println("[BUTTONS] WET calibration complete");
+    btn_log(F("cal wet ok"));
     #endif
 }
 
 static void perform_calibrate_dry(void) {
     #ifdef DEBUG_SERIAL
-    Serial.println("[BUTTONS] Starting DRY calibration");
+    btn_log(F("cal dry"));
     #endif
     led_green_on();                     // Green LED on during dry calibration
     (void)sensor_calibrate_dry();
     led_green_off();
     led_show_success();
     #ifdef DEBUG_SERIAL
-    Serial.println("[BUTTONS] DRY calibration complete");
+    btn_log(F("cal dry ok"));
     #endif
 }
 
@@ -297,9 +332,7 @@ static void adjust_minimal_humidity(int8_t direction) {
     storage_set_minimal_humidity(val);
 
     #ifdef DEBUG_SERIAL
-    Serial.print("[BUTTONS] Adjusted minimal humidity to ");
-    Serial.print(val);
-    Serial.println("%");
+    btn_log_u8(F("min="), val);
     #endif
 
     // Green LED is on in set-min-humidity mode.
@@ -328,9 +361,7 @@ static void adjust_max_humidity(int8_t direction) {
     storage_set_max_humidity(val);
 
     #ifdef DEBUG_SERIAL
-    Serial.print("[BUTTONS] Adjusted max humidity to ");
-    Serial.print(val);
-    Serial.println("%");
+    btn_log_u8(F("max="), val);
     #endif
 
     // Red LED is on in set-max-humidity mode.
@@ -425,6 +456,9 @@ void buttons_handle_interaction(bool from_button_wake) {
         bool cal_likely = (digitalRead(PIN_BTN_CAL_WET) == LOW) ||
                           (digitalRead(PIN_BTN_CAL_DRY) == LOW);
         if (!cal_likely) {
+            #ifdef DEBUG_SERIAL
+            btn_log(F("wake hum"));
+            #endif
             perform_display_humidity();
         }
         return;
@@ -459,6 +493,9 @@ void buttons_handle_interaction(bool from_button_wake) {
 
         // Unrecognized button combination → brief red flash as feedback
         if (any_press && new_mode == mode) {
+            #ifdef DEBUG_SERIAL
+            btn_log(F("bad combo"));
+            #endif
             PLAY_PATTERN(BTN_BAD);
             deadline_ms         = millis();   // extend timeout so user can retry
             last_mode_change_ms = millis();   // keep resolve_mode timeout in sync
@@ -489,6 +526,9 @@ void buttons_handle_interaction(bool from_button_wake) {
             last_mode_change_ms  = millis();
             deadline_ms          = millis();   // extend deadline on mode change
             humidity_prompted     = false;
+            #ifdef DEBUG_SERIAL
+            btn_log_mode(mode);
+            #endif
         }
 
         switch (mode) {
@@ -508,6 +548,9 @@ void buttons_handle_interaction(bool from_button_wake) {
                 return;
 
             case MODE_DISPLAY_HUMIDITY_RANGE:
+                #ifdef DEBUG_SERIAL
+                btn_log(F("range"));
+                #endif
                 perform_display_humidity_range();
                 return;
 
